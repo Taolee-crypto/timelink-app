@@ -134,6 +134,23 @@ ipcMain.handle('update-tl-balance', async (event, { filePath, newBalance }) => {
 
 // ── 재충전: 서버에 결제 요청 → 창작자/플랫폼 분배 → 파일 TL 업데이트 ──
 ipcMain.handle('recharge-tl', async (event, { filePath, shareId, token, amount }) => {
+  // shareId 없으면 로컬 충전만 (오프라인 테스트용)
+  if (!shareId || shareId === 'undefined' || shareId === 'null') {
+    try {
+      const buf  = fs.readFileSync(filePath);
+      const data = new Uint8Array(buf);
+      const hdrLen = data[6]|(data[7]<<8)|(data[8]<<16)|(data[9]<<24);
+      const header = JSON.parse(Buffer.from(data.slice(10,10+hdrLen)).toString('utf8'));
+      header.tl_balance = amount;
+      const newHdrBytes = Buffer.from(JSON.stringify(header),'utf8');
+      const lenBuf = Buffer.alloc(4); lenBuf.writeUInt32LE(newHdrBytes.length,0);
+      const magic  = Buffer.from([0x54,0x4C,0x4E,0x4B,0x01,0x00]);
+      const payload = data.slice(10+hdrLen);
+      fs.writeFileSync(filePath, Buffer.concat([magic,lenBuf,newHdrBytes,Buffer.from(payload)]));
+      return { ok:true, new_balance:amount, local_only:true };
+    } catch(e) { return { error: '파일 업데이트 실패: '+e.message }; }
+  }
+
   return new Promise((resolve) => {
     const body = JSON.stringify({ shareId, amount, source: 'player_recharge' });
     const opts = {
@@ -148,29 +165,29 @@ ipcMain.handle('recharge-tl', async (event, { filePath, shareId, token, amount }
     };
     const req = https.request(opts, (res) => {
       let d=''; res.on('data',c=>d+=c);
-      res.on('end', async () => {
+      res.on('end', () => {
         try {
           const r = JSON.parse(d);
           if (!r.ok) { resolve({ error: r.error||'충전 실패' }); return; }
-          // 서버 충전 성공 → 파일 tl_balance 업데이트
           const newBalance = r.new_balance || amount;
-          const upd = await ipcMain.emit; // self-call via file update
-          // 직접 파일 업데이트
-          const buf  = fs.readFileSync(filePath);
-          const data = new Uint8Array(buf);
-          const hdrLen = data[6]|(data[7]<<8)|(data[8]<<16)|(data[9]<<24);
-          const header = JSON.parse(Buffer.from(data.slice(10,10+hdrLen)).toString('utf8'));
-          header.tl_balance = newBalance;
-          const newHdrBytes = Buffer.from(JSON.stringify(header),'utf8');
-          const lenBuf = Buffer.alloc(4); lenBuf.writeUInt32LE(newHdrBytes.length,0);
-          const magic  = Buffer.from([0x54,0x4C,0x4E,0x4B,0x01,0x00]);
-          const payload = data.slice(10+hdrLen);
-          fs.writeFileSync(filePath, Buffer.concat([magic,lenBuf,newHdrBytes,Buffer.from(payload)]));
+          // 파일 tl_balance 업데이트
+          try {
+            const buf  = fs.readFileSync(filePath);
+            const data2 = new Uint8Array(buf);
+            const hdrLen = data2[6]|(data2[7]<<8)|(data2[8]<<16)|(data2[9]<<24);
+            const header = JSON.parse(Buffer.from(data2.slice(10,10+hdrLen)).toString('utf8'));
+            header.tl_balance = newBalance;
+            const newHdrBytes = Buffer.from(JSON.stringify(header),'utf8');
+            const lenBuf = Buffer.alloc(4); lenBuf.writeUInt32LE(newHdrBytes.length,0);
+            const magic  = Buffer.from([0x54,0x4C,0x4E,0x4B,0x01,0x00]);
+            const payload = data2.slice(10+hdrLen);
+            fs.writeFileSync(filePath, Buffer.concat([magic,lenBuf,newHdrBytes,Buffer.from(payload)]));
+          } catch(fe) { console.error('[recharge file update]', fe.message); }
           resolve({ ok:true, new_balance:newBalance, creator_share:r.creator_share, platform_share:r.platform_share });
-        } catch(e) { resolve({ error: e.message }); }
+        } catch(e) { resolve({ error: '응답 파싱 오류: '+e.message }); }
       });
     });
-    req.on('error', e => resolve({ error: e.message }));
+    req.on('error', e => resolve({ error: '네트워크 오류: '+e.message }));
     req.write(body); req.end();
   });
 });

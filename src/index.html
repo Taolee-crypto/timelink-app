@@ -306,7 +306,7 @@ body::after{content:'';position:fixed;width:400px;height:400px;
     <!-- TL 소진 → 재충전 -->
     <div class="recharge-area" id="rechargeArea">
       <span class="rc-label">⚡ TL 소진 — 재충전이 필요합니다</span>
-      <button class="rc-btn" onclick="doRecharge()">💳 재충전</button>
+      <button class="rc-btn" onclick="doRecharge()" id="rcBtn">💳 재충전하기</button>
     </div>
 
     <!-- 진행바 -->
@@ -424,14 +424,14 @@ async function loadTLFile(fp){
 
   updateFileTLDisplay();
 
-  // TL=0이면 바로 재충전 안내
+  // TL=0이면 재충전 안내 (자동재생 안 함)
   if(_fileTL <= 0){
     document.getElementById('rechargeArea').classList.add('show');
     setSt('⚡ 파일 TL 소진 — 재충전 후 재생하세요','warn');
     return;
   }
 
-  setSt('✅ 파일 로드 완료 · ▶ 눌러 재생','ok');
+  setSt('✅ '+_fileTL.toLocaleString()+' TL 충전됨 · ▶ 눌러 재생','ok');
   setTimeout(()=>togglePlay(), 400);
 }
 
@@ -533,22 +533,38 @@ async function flushPOC(){
 
 // ── 재충전 ──
 async function doRecharge(){
-  if(!_shareId||!_token){ setSt('로그인 후 재충전하세요','warn'); return; }
-  const amount = _fileTLMax || 3600; // 기본 1시간치 재충전
+  if(!_token){ setSt('로그인 후 재충전하세요','warn'); return; }
+
+  // 재충전 금액 선택
+  const choices = [3600, 7200, 18000, 36000];
+  const labels  = ['1시간 (3,600 TL)','2시간 (7,200 TL)','5시간 (18,000 TL)','10시간 (36,000 TL)'];
+  const pick = choices[1]; // 기본 2시간
+  const amount = _fileTLMax > 0 ? _fileTLMax : pick;
+
   setSt('⏳ 재충전 중...');
   try{
     const res = await tlAPI.rechargeTL({
-      filePath:_filePath, shareId:_shareId, token:_token, amount
+      filePath: _filePath,
+      shareId:  _shareId || null,
+      token:    _token,
+      amount:   amount
     });
     if(res.error) throw new Error(res.error);
-    _fileTL = res.new_balance;
-    _fileTLMax = Math.max(_fileTLMax, _fileTL);
+
+    _fileTL    = res.new_balance;
+    _fileTLMax = Math.max(_fileTLMax || amount, _fileTL);
     updateFileTLDisplay();
     document.getElementById('rechargeArea').classList.remove('show');
-    setSt('✅ '+amount.toLocaleString()+' TL 재충전 완료!','ok');
-    // 분배 정보 표시
-    if(res.creator_share || res.platform_share){
-      setTimeout(()=>setSt('창작자 '+res.creator_share+' TL · 플랫폼 '+res.platform_share+' TL 분배 완료','ok'),1500);
+
+    if(res.local_only){
+      setSt('✅ '+amount.toLocaleString()+' TL 충전 완료 (로컬)','ok');
+    } else {
+      setSt('✅ '+amount.toLocaleString()+' TL 재충전 완료!','ok');
+      if(res.creator_share || res.platform_share){
+        setTimeout(()=>setSt(
+          '창작자 '+(res.creator_share||0).toLocaleString()+' TL · 플랫폼 '+(res.platform_share||0).toLocaleString()+' TL 분배 완료','ok'
+        ),1500);
+      }
     }
   }catch(e){ setSt('❌ 재충전 실패: '+e.message,'error'); }
 }
