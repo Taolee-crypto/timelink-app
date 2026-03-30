@@ -2,212 +2,299 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy"
-  content="default-src 'self'; connect-src https://api.timelink.digital wss://api.timelink.digital; media-src blob: data:; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline';">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>TimeLink Player</title>
 <style>
-*{margin:0;padding:0;box-sizing:border-box;-webkit-user-select:none;user-select:none}
-body{background:#08080F;color:#fff;font-family:'Noto Sans KR','Apple SD Gothic Neo',sans-serif;
-  height:100vh;display:flex;flex-direction:column;overflow:hidden}
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#08080F;--bg2:#0D0D1A;--bg3:#111120;
+  --purple:#8B5CF6;--mint:#00E5A0;--rose:#FB7185;--gold:#FBBF24;
+  --t1:#F1F5F9;--t2:#94A3B8;--t3:#475569;
+  --bd:rgba(255,255,255,.08);--bd2:rgba(255,255,255,.14);
+  --grad:linear-gradient(135deg,#8B5CF6,#00E5A0)
+}
+body{background:var(--bg);color:var(--t1);font-family:'Noto Sans KR','Apple SD Gothic Neo',sans-serif;
+  height:100vh;display:flex;flex-direction:column;overflow:hidden;user-select:none}
+
+/* ── 타이틀바 ── */
 .titlebar{height:38px;-webkit-app-region:drag;display:flex;align-items:center;
-  padding:0 16px;background:#08080F;border-bottom:1px solid rgba(255,255,255,.06)}
-.tl-logo{font-size:13px;font-weight:900;letter-spacing:.1em;
-  background:linear-gradient(90deg,#8B5CF6,#00E5A0);-webkit-background-clip:text;
-  -webkit-text-fill-color:transparent}
+  padding:0 16px;gap:10px;background:rgba(8,8,15,.9);border-bottom:1px solid var(--bd);flex-shrink:0}
+.titlebar-logo{width:22px;height:22px;border-radius:6px;background:var(--grad);
+  display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:900;color:#fff}
+.titlebar-title{font-size:12px;font-weight:700;letter-spacing:.08em;color:var(--t2)}
+.titlebar-version{font-size:10px;color:var(--t3);font-family:monospace;margin-left:auto}
 
-/* 로그인 화면 */
-#loginScreen{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px}
-.login-title{font-size:22px;font-weight:900;margin-bottom:8px}
-.login-sub{font-size:12px;color:rgba(255,255,255,.4);margin-bottom:32px;text-align:center}
-.inp{width:100%;padding:12px 16px;border-radius:10px;border:1px solid rgba(255,255,255,.1);
-  background:rgba(255,255,255,.05);color:#fff;font-size:14px;outline:none;margin-bottom:10px}
-.inp::placeholder{color:rgba(255,255,255,.25)}
-.inp:focus{border-color:#8B5CF6}
-.btn-primary{width:100%;padding:13px;border-radius:10px;border:none;cursor:pointer;
-  background:linear-gradient(135deg,#8B5CF6,#7C3AED);color:#fff;font-size:14px;
-  font-weight:700;margin-top:6px;transition:all .2s}
-.btn-primary:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(139,92,246,.4)}
-.btn-primary:disabled{opacity:.4;transform:none;cursor:default}
+/* ── 로그인 ── */
+#loginScreen{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px;gap:0}
+.login-logo{font-size:48px;margin-bottom:16px}
+.login-title{font-size:20px;font-weight:900;margin-bottom:6px}
+.login-sub{font-size:12px;color:var(--t3);text-align:center;margin-bottom:28px;line-height:1.6}
+.inp{width:100%;max-width:300px;padding:11px 14px;border-radius:10px;border:1px solid var(--bd2);
+  background:rgba(255,255,255,.04);color:var(--t1);font-size:13px;outline:none;
+  transition:border-color .2s;font-family:inherit;margin-bottom:10px}
+.inp:focus{border-color:var(--purple)}
+.inp::placeholder{color:var(--t3)}
+.login-btn{width:100%;max-width:300px;padding:12px;border-radius:10px;border:none;
+  background:var(--grad);color:#fff;font-size:14px;font-weight:700;cursor:pointer;
+  transition:all .2s;font-family:inherit}
+.login-btn:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(139,92,246,.4)}
+.login-btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.status-msg{font-size:11px;margin-top:10px;text-align:center;color:var(--t3)}
+.status-msg.error{color:var(--rose)}
+.status-msg.ok{color:var(--mint)}
 
-/* 플레이어 화면 */
-#playerScreen{flex:1;display:none;flex-direction:column}
+/* ── 플레이어 ── */
+#playerScreen{flex:1;display:none;flex-direction:column;overflow:hidden}
+
+/* 상단 유저 바 */
+.user-bar{display:flex;align-items:center;padding:8px 16px;gap:10px;
+  background:rgba(8,8,15,.8);border-bottom:1px solid var(--bd);flex-shrink:0}
+.user-email{font-size:11px;color:var(--t3);font-family:monospace;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tl-badge{display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;
+  background:rgba(139,92,246,.12);border:1px solid rgba(139,92,246,.25)}
+.tl-badge-icon{font-size:11px}
+.tl-badge-val{font-size:12px;font-weight:700;color:var(--mint);font-family:monospace}
+.logout-btn{padding:4px 10px;border-radius:6px;border:1px solid var(--bd);
+  background:transparent;color:var(--t3);font-size:10px;cursor:pointer;font-family:inherit;
+  transition:all .2s}
+.logout-btn:hover{color:var(--t1)}
+
+/* 드롭존 */
 .drop-zone{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
-  margin:16px;border:2px dashed rgba(139,92,246,.3);border-radius:20px;
-  cursor:pointer;transition:all .3s;padding:24px;text-align:center}
-.drop-zone:hover,.drop-zone.drag-over{border-color:#8B5CF6;background:rgba(139,92,246,.06)}
-.drop-icon{font-size:48px;margin-bottom:12px;opacity:.4}
-.drop-title{font-size:15px;font-weight:700;margin-bottom:6px}
-.drop-sub{font-size:11px;color:rgba(255,255,255,.35)}
+  gap:12px;cursor:pointer;transition:all .2s;padding:24px;border:2px dashed transparent}
+.drop-zone:hover,.drop-zone.drag-over{border-color:rgba(139,92,246,.4);background:rgba(139,92,246,.04)}
+.dz-icon{font-size:48px}
+.dz-title{font-size:15px;font-weight:700;color:var(--t2)}
+.dz-sub{font-size:12px;color:var(--t3);text-align:center;line-height:1.6}
+.open-btn{padding:10px 24px;border-radius:10px;border:1px solid rgba(139,92,246,.4);
+  background:rgba(139,92,246,.1);color:var(--purple);font-size:13px;font-weight:700;
+  cursor:pointer;font-family:inherit;transition:all .2s}
+.open-btn:hover{background:rgba(139,92,246,.2)}
 
 /* 파일 정보 */
-.file-info{display:none;flex-direction:column;margin:16px;gap:0}
-.cover-wrap{width:100%;aspect-ratio:1;border-radius:16px;overflow:hidden;
-  background:linear-gradient(135deg,#1a1060,#0d3050);margin-bottom:16px;
-  display:flex;align-items:center;justify-content:center}
-.cover-icon{font-size:64px;opacity:.3}
-.file-title{font-size:18px;font-weight:900;margin-bottom:4px;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.file-artist{font-size:13px;color:rgba(255,255,255,.4);margin-bottom:2px}
-.file-meta{font-size:10px;color:rgba(139,92,246,.6);font-family:monospace;margin-bottom:16px}
+#fileInfo{display:none;flex-direction:column}
+
+/* 비디오 플레이어 */
+.video-wrap{background:#000;position:relative;flex-shrink:0;display:none}
+.video-wrap video{width:100%;max-height:220px;display:block;object-fit:contain}
+
+/* 커버 + 메타 */
+.cover-row{display:flex;align-items:center;gap:14px;padding:16px;flex-shrink:0}
+.cover-art{width:64px;height:64px;border-radius:12px;
+  background:linear-gradient(135deg,#1a1060,#0d3050);
+  display:flex;align-items:center;justify-content:center;font-size:28px;flex-shrink:0;
+  overflow:hidden;border:1px solid var(--bd2)}
+.cover-art img{width:100%;height:100%;object-fit:cover}
+.meta{flex:1;min-width:0}
+.meta-title{font-size:15px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.meta-artist{font-size:12px;color:var(--t3);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.meta-info{font-size:10px;color:var(--t3);margin-top:4px;font-family:monospace}
 
 /* 진행바 */
-.progress-wrap{height:4px;background:rgba(255,255,255,.1);border-radius:2px;
-  margin-bottom:12px;cursor:pointer;position:relative}
-.progress-fill{height:100%;background:linear-gradient(90deg,#8B5CF6,#00E5A0);
-  border-radius:2px;width:0%;transition:width .3s linear}
-.time-row{display:flex;justify-content:space-between;font-size:11px;
-  color:rgba(255,255,255,.3);font-family:monospace;margin-bottom:20px}
+.progress-wrap{padding:0 16px;margin-bottom:8px;cursor:pointer;flex-shrink:0}
+.progress-bg{height:4px;background:rgba(255,255,255,.08);border-radius:2px;overflow:hidden}
+.progress-fill{height:100%;background:var(--grad);border-radius:2px;width:0%;transition:width .3s linear}
+.time-row{display:flex;justify-content:space-between;font-size:10px;color:var(--t3);
+  font-family:monospace;padding:4px 16px 0;flex-shrink:0}
 
 /* 컨트롤 */
-.controls{display:flex;align-items:center;justify-content:center;gap:24px;margin-bottom:20px}
-.ctrl-btn{width:48px;height:48px;border-radius:50%;border:none;cursor:pointer;
-  background:rgba(255,255,255,.06);color:#fff;font-size:18px;transition:all .2s}
-.ctrl-btn:hover{background:rgba(255,255,255,.12)}
-.ctrl-btn.play{width:64px;height:64px;font-size:24px;
-  background:linear-gradient(135deg,#8B5CF6,#7C3AED)}
-.ctrl-btn.play:hover{transform:scale(1.05);box-shadow:0 6px 20px rgba(139,92,246,.4)}
+.controls{display:flex;align-items:center;justify-content:center;gap:20px;padding:12px 16px;flex-shrink:0}
+.ctrl-btn{width:40px;height:40px;border-radius:50%;border:1px solid var(--bd2);
+  background:rgba(255,255,255,.04);color:var(--t2);font-size:16px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;transition:all .2s;font-family:inherit}
+.ctrl-btn:hover{color:var(--t1);border-color:var(--bd2)}
+.ctrl-btn.play{width:58px;height:58px;font-size:22px;
+  background:var(--grad);border:none;color:#fff;box-shadow:0 4px 20px rgba(139,92,246,.35)}
+.ctrl-btn.play:hover{transform:scale(1.06);box-shadow:0 8px 28px rgba(139,92,246,.5)}
 
-/* TL 잔액 */
-.tl-bar{display:flex;align-items:center;justify-content:space-between;
-  padding:12px 16px;background:rgba(255,255,255,.03);border-top:1px solid rgba(255,255,255,.06)}
-.tl-val{font-size:14px;font-weight:700;color:#00E5A0;font-family:monospace}
-.tl-lbl{font-size:10px;color:rgba(255,255,255,.3)}
-.open-btn{padding:6px 14px;border-radius:8px;border:1px solid rgba(139,92,246,.4);
-  background:transparent;color:#8B5CF6;font-size:11px;cursor:pointer;transition:all .2s}
-.open-btn:hover{background:rgba(139,92,246,.1)}
+/* TL 바 */
+.tl-bar{display:flex;align-items:center;gap:10px;padding:10px 16px;
+  background:rgba(139,92,246,.06);border-top:1px solid rgba(139,92,246,.12);flex-shrink:0}
+.tl-bar-label{font-size:10px;color:var(--t3);flex-shrink:0}
+.tl-bar-bg{flex:1;height:4px;background:rgba(255,255,255,.08);border-radius:2px;overflow:hidden}
+.tl-bar-fill{height:100%;background:linear-gradient(90deg,var(--purple),var(--mint));
+  border-radius:2px;transition:width .5s}
+.tl-bar-val{font-size:11px;font-weight:700;color:var(--purple);font-family:monospace;flex-shrink:0}
 
 /* 상태 메시지 */
-.status{font-size:12px;color:rgba(255,255,255,.4);text-align:center;
-  padding:8px;min-height:32px}
-.status.error{color:#F87171}
-.status.ok{color:#00E5A0}
+.player-status{font-size:11px;text-align:center;padding:6px 16px;color:var(--t3);flex-shrink:0;min-height:28px}
+.player-status.error{color:var(--rose)}
+.player-status.ok{color:var(--mint)}
+.player-status.warn{color:var(--gold)}
+
+/* TL 없음 경고 */
+.tl-empty-banner{display:none;margin:12px 16px;padding:14px;border-radius:10px;
+  background:rgba(251,113,133,.08);border:1px solid rgba(251,113,133,.25);text-align:center}
+.tl-empty-banner.show{display:block}
+.tl-empty-title{font-size:13px;font-weight:700;color:var(--rose);margin-bottom:6px}
+.tl-empty-desc{font-size:11px;color:var(--t3);line-height:1.6}
+
+/* 스크롤바 */
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(139,92,246,.2);border-radius:2px}
 </style>
 </head>
 <body>
 
+<!-- 타이틀바 -->
 <div class="titlebar">
-  <span class="tl-logo">⚡ TIMELINK</span>
+  <div class="titlebar-logo">TL</div>
+  <span class="titlebar-title">TIMELINK PLAYER</span>
+  <span class="titlebar-version">v1.0.0</span>
 </div>
 
 <!-- 로그인 화면 -->
 <div id="loginScreen">
-  <div style="font-size:40px;margin-bottom:16px">⚡</div>
+  <div class="login-logo">⚡</div>
   <div class="login-title">TimeLink Player</div>
   <div class="login-sub">timelink.digital 계정으로 로그인하세요<br>.tl 파일을 재생하려면 TL 잔액이 필요합니다</div>
-  <input class="inp" id="emailInp" type="email" placeholder="이메일" autocomplete="email">
-  <input class="inp" id="pwInp" type="password" placeholder="비밀번호" autocomplete="current-password"
-    onkeydown="if(event.key==='Enter')doLogin()">
-  <button class="btn-primary" id="loginBtn" onclick="doLogin()">로그인</button>
-  <div class="status" id="loginStatus"></div>
+  <input class="inp" type="email" id="emailInp" placeholder="이메일" onkeydown="if(event.key==='Enter')document.getElementById('pwInp').focus()">
+  <input class="inp" type="password" id="pwInp" placeholder="비밀번호" onkeydown="if(event.key==='Enter')doLogin()">
+  <button class="login-btn" id="loginBtn" onclick="doLogin()">로그인</button>
+  <div class="status-msg" id="loginStatus"></div>
 </div>
 
 <!-- 플레이어 화면 -->
 <div id="playerScreen">
-  <!-- 드롭존 -->
+
+  <!-- 유저 바 -->
+  <div class="user-bar">
+    <div class="user-email" id="userEmail">-</div>
+    <div class="tl-badge">
+      <span class="tl-badge-icon">⚡</span>
+      <span class="tl-badge-val" id="tlVal">- TL</span>
+    </div>
+    <button class="logout-btn" onclick="doLogout()">↩</button>
+  </div>
+
+  <!-- 드롭존 (파일 없을 때) -->
   <div class="drop-zone" id="dropZone"
     onclick="openFile()"
     ondragover="event.preventDefault();this.classList.add('drag-over')"
     ondragleave="this.classList.remove('drag-over')"
     ondrop="onDrop(event)">
-    <div class="drop-icon">📂</div>
-    <div class="drop-title">.tl 파일을 여기에 드롭</div>
-    <div class="drop-sub">또는 클릭하여 파일 선택</div>
+    <div class="dz-icon">📂</div>
+    <div class="dz-title">.tl 파일을 드롭하거나 선택하세요</div>
+    <div class="dz-sub">오디오·영상·이미지·문서<br>TL 잔액이 있어야 재생됩니다</div>
+    <button class="open-btn" onclick="event.stopPropagation();openFile()">📁 파일 열기</button>
   </div>
 
   <!-- 파일 정보 + 플레이어 -->
-  <div class="file-info" id="fileInfo">
-    <div class="cover-wrap">
-      <div class="cover-icon" id="coverIcon">🎵</div>
-    </div>
-    <div class="file-title" id="fileTitle">—</div>
-    <div class="file-artist" id="fileArtist">—</div>
-    <div class="file-meta" id="fileMeta">—</div>
+  <div id="fileInfo">
 
-    <div class="progress-wrap" id="progressWrap" onclick="seekTo(event)">
-      <div class="progress-fill" id="progressFill"></div>
+    <!-- 비디오 영역 (영상 파일일 때만 표시) -->
+    <div class="video-wrap" id="videoWrap">
+      <video id="videoEl" playsinline></video>
+    </div>
+
+    <!-- 커버 + 메타 -->
+    <div class="cover-row">
+      <div class="cover-art" id="coverArt">
+        <span id="coverIcon">🎵</span>
+      </div>
+      <div class="meta">
+        <div class="meta-title" id="fileTitle">-</div>
+        <div class="meta-artist" id="fileArtist">-</div>
+        <div class="meta-info" id="fileMeta">-</div>
+      </div>
+    </div>
+
+    <!-- TL 없음 경고 -->
+    <div class="tl-empty-banner" id="tlEmptyBanner">
+      <div class="tl-empty-title">⚡ TL 잔액 없음</div>
+      <div class="tl-empty-desc">재생하려면 TL이 필요합니다.<br>timelink.digital에서 충전 후 다시 시도하세요.</div>
+    </div>
+
+    <!-- 진행바 -->
+    <div class="progress-wrap" onclick="seekTo(event)">
+      <div class="progress-bg">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
     </div>
     <div class="time-row">
       <span id="timeEl">0:00</span>
       <span id="durEl">0:00</span>
     </div>
 
+    <!-- 컨트롤 -->
     <div class="controls">
-      <button class="ctrl-btn" onclick="seekRel(-10)">⏮</button>
+      <button class="ctrl-btn" onclick="seekRel(-10)" title="-10초">⏮</button>
       <button class="ctrl-btn play" id="playBtn" onclick="togglePlay()">▶</button>
-      <button class="ctrl-btn" onclick="seekRel(10)">⏭</button>
+      <button class="ctrl-btn" onclick="seekRel(10)" title="+10초">⏭</button>
     </div>
-    <div class="status" id="playerStatus"></div>
+
+    <!-- TL 바 -->
+    <div class="tl-bar">
+      <span class="tl-bar-label">⚡ TL</span>
+      <div class="tl-bar-bg"><div class="tl-bar-fill" id="tlBarFill" style="width:0%"></div></div>
+      <span class="tl-bar-val" id="tlBarVal">0</span>
+    </div>
+
+    <!-- 상태 -->
+    <div class="player-status" id="playerStatus"></div>
+
+    <!-- 다른 파일 열기 -->
+    <div style="text-align:center;padding:8px 16px 12px">
+      <button class="open-btn" onclick="resetPlayer()">📂 다른 파일 열기</button>
+    </div>
   </div>
 
-  <div class="tl-bar">
-    <div>
-      <div class="tl-lbl">⚡ TL 잔액</div>
-      <div class="tl-val" id="tlVal">0 TL</div>
-    </div>
-    <div style="display:flex;gap:8px;align-items:center">
-      <div style="font-size:10px;color:rgba(255,255,255,.3)" id="userEmail">—</div>
-      <button class="open-btn" onclick="openFile()">📂 열기</button>
-      <button class="open-btn" onclick="doLogout()">로그아웃</button>
-    </div>
-  </div>
 </div>
 
+<!-- 오디오 엘리먼트 (숨김) -->
 <audio id="audioEl" style="display:none"></audio>
 
 <script>
 const API = 'https://api.timelink.digital';
+
 let _token = null, _user = null;
-let _header = null, _shareId = null, _playing = false;
+let _header = null, _shareId = null;
+let _playing = false, _isVideo = false;
 let _audio = document.getElementById('audioEl');
-let _tickTimer = null, _currentBlob = null;
+let _video = document.getElementById('videoEl');
+let _tickTimer = null, _tlMax = 0;
 
 // ── 초기화 ──
 (async function init(){
   _token = await tlAPI.storeGet('tl_token');
-  const userJson = await tlAPI.storeGet('tl_user');
-  if(_token && userJson){
-    _user = JSON.parse(userJson);
-    showPlayer();
-  }
+  const uj = await tlAPI.storeGet('tl_user');
+  if(_token && uj){ _user = JSON.parse(uj); showPlayer(); }
 
-  // .tl 파일 열기 이벤트 (더블클릭)
   tlAPI.onTLFileOpen(fp => loadTLFile(fp));
+  tlAPI.onProgress(bytes => {
+    const mb = (bytes/1048576).toFixed(1);
+    setStatus('⏳ 다운로드 중... ' + mb + 'MB');
+  });
 })();
 
 // ── 로그인 ──
 async function doLogin(){
   const email = document.getElementById('emailInp').value.trim();
   const pw    = document.getElementById('pwInp').value;
-  if(!email||!pw){ setStatus('loginStatus','이메일과 비밀번호를 입력하세요','error'); return; }
+  if(!email||!pw){ setLoginStatus('이메일과 비밀번호를 입력하세요','error'); return; }
   const btn = document.getElementById('loginBtn');
   btn.disabled=true; btn.textContent='로그인 중...';
-  setStatus('loginStatus','');
+  setLoginStatus('서버 연결 중...');
   try{
-    setStatus('loginStatus', '서버 연결 중...');
-    let r, d;
-    try {
-      r = await fetch(API+'/api/auth/login',{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({email, password:pw})
-      });
-      d = await r.json();
-    } catch(netErr) {
-      throw new Error('네트워크 오류: '+netErr.message+' (서버: '+API+')');
-    }
-    if(!r.ok) throw new Error(d.error || 'HTTP '+r.status);
+    const r = await fetch(API+'/api/auth/login',{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({email, password:pw})
+    });
+    const d = await r.json();
+    if(!r.ok) throw new Error(d.error||'HTTP '+r.status);
     _token = d.token; _user = d.user;
     await tlAPI.storeSet('tl_token', _token);
     await tlAPI.storeSet('tl_user', JSON.stringify(_user));
     showPlayer();
   }catch(e){
-    setStatus('loginStatus', '❌ '+e.message, 'error');
+    setLoginStatus('❌ '+e.message, 'error');
     btn.disabled=false; btn.textContent='로그인';
   }
 }
 
 function doLogout(){
-  _token=null;_user=null;
+  _token=null; _user=null;
   tlAPI.storeSet('tl_token',null);
   tlAPI.storeSet('tl_user',null);
   stopPlayback();
@@ -225,126 +312,244 @@ function showPlayer(){
 
 // ── .tl 파일 로드 ──
 async function loadTLFile(filePath){
-  setStatus('playerStatus','⏳ 파일 파싱 중...');
+  setStatus('⏳ 파일 파싱 중...');
   const parsed = await tlAPI.parseTLFile(filePath);
-  if(parsed.error){ setStatus('playerStatus', parsed.error, 'error'); return; }
+
+  if(parsed.error){
+    setStatus('❌ ' + parsed.error, 'error');
+    return;
+  }
 
   _header  = parsed.header;
   _shareId = _header.shareId;
+
+  // 파일 타입 판별
+  const ft = (_header.fileType||'').toLowerCase();
+  const ext = (filePath||'').split('.').pop()?.toLowerCase()||'';
+  _isVideo = ft.startsWith('video') || ext==='tl4' || _header.category_type==='video';
 
   // UI 업데이트
   document.getElementById('dropZone').style.display='none';
   const fi = document.getElementById('fileInfo');
   fi.style.display='flex'; fi.style.flexDirection='column';
-  const iconMap = {'audio':'🎵','video':'🎬','image':'🖼️','application':'📄'};
-  const ft = (_header.fileType||'').split('/')[0];
-  document.getElementById('coverIcon').textContent = iconMap[ft]||'📄';
+
+  // 아이콘
+  const extIconMap={tl3:'🎵',tl4:'🎬',tlg:'🖼️',tld:'📄',tle:'📦',tl:'🎵'};
+  const ftIconMap ={'audio':'🎵','video':'🎬','image':'🖼️','application':'📄'};
+  const icon = extIconMap[ext] || ftIconMap[ft.split('/')[0]] || '📄';
+  document.getElementById('coverIcon').textContent = icon;
+
   document.getElementById('fileTitle').textContent  = _header.title||'제목 없음';
   document.getElementById('fileArtist').textContent = _header.artist||_header.creatorName||'—';
   document.getElementById('fileMeta').textContent   =
-    'shareId: '+_shareId+' · '+fmt(parsed.fileSize)+'  · v'+_header.version;
+    [_shareId ? 'ID:'+_shareId.slice(0,8)+'...' : '',
+     fmt(parsed.fileSize),
+     parsed.needsServerDecrypt ? '서버복호화' : '로컬복호화'
+    ].filter(Boolean).join(' · ');
   document.getElementById('durEl').textContent = fmtTime(_header.duration||0);
 
-  setStatus('playerStatus','▶ 재생 버튼을 눌러 시작하세요','ok');
+  // 비디오 영역 토글
+  document.getElementById('videoWrap').style.display = _isVideo ? 'block' : 'none';
+
+  // TL 확인 후 자동 재생
+  await updateTLDisplay();
+  setTimeout(function(){ togglePlay(); }, 400);
 }
 
-// ── 재생 ──
+// ── 재생/일시정지 ──
 async function togglePlay(){
   if(_playing){ stopPlayback(); return; }
-  if(!_shareId){ setStatus('playerStatus','파일을 먼저 열어주세요','error'); return; }
+  if(!_shareId){ setStatus('파일을 먼저 열어주세요', 'warn'); return; }
 
-  setStatus('playerStatus','⏳ 복호화 중...');
+  // ── TL 잔액 확인 ──
+  setStatus('⏳ TL 잔액 확인 중...');
+  const tlCheck = await tlAPI.checkTL({ token: _token });
+  const tl = tlCheck.tl || 0;
+
+  if(_user) _user.tl = tl;
+  updateTLDisplay();
+
+  if(tl <= 0){
+    document.getElementById('tlEmptyBanner').classList.add('show');
+    setStatus('⚡ TL 잔액이 없습니다. timelink.digital에서 충전하세요.', 'error');
+    document.getElementById('playBtn').textContent='▶';
+    return;
+  }
+
+  document.getElementById('tlEmptyBanner').classList.remove('show');
+  _tlMax = tl;
+
+  setStatus('⏳ 복호화 중...');
   document.getElementById('playBtn').textContent='⏳';
 
-  // TL 잔액 재확인
-  await updateTLDisplay();
-  const tl = Number(_user?.tl||0);
-  if(tl<=0){
-    setStatus('playerStatus','⚡ TL 잔액이 없습니다. timelink.digital에서 충전하세요.','error');
+  // ── 복호화 (로컬 우선 → 서버 폴백) ──
+  let b64data = null;
+
+  if(_header._localDecrypted){
+    // 이미 파싱 시 복호화됨
+    b64data = _header._localDecrypted;
+  } else {
+    // parse 시 decrypted 받아야 하므로 다시 파싱
+    const parsed2 = await tlAPI.parseTLFile(await tlAPI.storeGet('_lastFilePath'));
+    if(parsed2.decrypted){
+      b64data = parsed2.decrypted;
+    } else if(parsed2.needsServerDecrypt && _shareId){
+      // 서버 복호화 폴백
+      setStatus('⏳ 서버에서 복호화 중...');
+      const res = await tlAPI.decryptStream({ shareId: _shareId, token: _token });
+      if(res.error === 'TL_INSUFFICIENT'){
+        setStatus('⚡ TL 잔액 부족', 'error');
+        document.getElementById('playBtn').textContent='▶';
+        return;
+      }
+      if(!res.ok || !res.data){
+        setStatus('❌ 복호화 실패: '+(res.error||'알 수 없는 오류'), 'error');
+        document.getElementById('playBtn').textContent='▶';
+        return;
+      }
+      b64data = res.data;
+    }
+  }
+
+  if(!b64data){
+    setStatus('❌ 복호화 데이터 없음 — 파일을 다시 열어주세요', 'error');
     document.getElementById('playBtn').textContent='▶';
     return;
   }
 
-  // 서버에서 복호화된 데이터 받기
-  const result = await tlAPI.decryptStream({ shareId:_shareId, token:_token });
-  if(!result.ok || result.error){
-    const msg = result.error==='TL_INSUFFICIENT'
-      ? 'TL 잔액 부족 — timelink.digital에서 충전하세요'
-      : result.error||'복호화 실패';
-    setStatus('playerStatus', msg, 'error');
-    document.getElementById('playBtn').textContent='▶';
-    return;
-  }
+  // ── Base64 → Blob → 재생 ──
+  try{
+    const bytes = Uint8Array.from(atob(b64data), c=>c.charCodeAt(0));
+    const mime  = _header.fileType || (_isVideo ? 'video/mp4' : 'audio/mpeg');
+    const blob  = new Blob([bytes], {type: mime});
+    const url   = URL.createObjectURL(blob);
 
-  // Base64 → Blob → 재생
-  const bytes = Uint8Array.from(atob(result.data), c=>c.charCodeAt(0));
-  const mime  = _header.fileType||'audio/mpeg';
-  _currentBlob = new Blob([bytes],{type:mime});
-  const blobUrl = URL.createObjectURL(_currentBlob);
+    const mediaEl = _isVideo ? _video : _audio;
+    mediaEl.src = url;
+    mediaEl.ontimeupdate = onTimeUpdate;
+    mediaEl.onended = () => stopPlayback();
+    mediaEl.onerror = (e) => {
+      setStatus('❌ 재생 오류: ' + (e.message||'미디어 형식 불지원') + ' ['+mime+']', 'error');
+      document.getElementById('playBtn').textContent='▶';
+    };
 
-  _audio.src = blobUrl;
-  _audio.ontimeupdate = onTimeUpdate;
-  _audio.onended = () => stopPlayback();
-  _audio.play().then(()=>{
+    await mediaEl.play();
     _playing = true;
     document.getElementById('playBtn').textContent='⏸';
-    setStatus('playerStatus','▶ 재생 중','ok');
+    setStatus('▶ 재생 중 · 1초 = ' + (_header.tl_per_sec||1) + ' TL', 'ok');
     startTick();
-  }).catch(e=>{
-    setStatus('playerStatus','재생 오류: '+e.message,'error');
+  }catch(e){
+    setStatus('❌ 재생 오류: '+e.message, 'error');
     document.getElementById('playBtn').textContent='▶';
-  });
+  }
 }
 
 function stopPlayback(){
-  _playing=false;
+  _playing = false;
   _audio.pause();
+  _video.pause();
   document.getElementById('playBtn').textContent='▶';
-  setStatus('playerStatus','');
+  if(_playing===false) setStatus('');
   stopTick();
-  if(_currentBlob){ URL.revokeObjectURL(_audio.src); }
 }
 
-// ── TL 차감 (tick) ──
+// ── .tl 파일 로드 개선 (파일 경로 저장) ──
+const _origLoadTLFile = loadTLFile;
+loadTLFile = async function(filePath){
+  await tlAPI.storeSet('_lastFilePath', filePath);
+
+  setStatus('⏳ 파일 파싱 중...');
+  const parsed = await tlAPI.parseTLFile(filePath);
+
+  if(parsed.error){
+    setStatus('❌ ' + parsed.error, 'error');
+    return;
+  }
+
+  _header  = parsed.header;
+  _shareId = _header.shareId;
+
+  // 로컬 복호화 데이터 헤더에 저장
+  if(parsed.decrypted){
+    _header._localDecrypted = parsed.decrypted;
+  }
+
+  const ft = (_header.fileType||'').toLowerCase();
+  const ext = (filePath||'').split('.').pop()?.toLowerCase()||'';
+  _isVideo = ft.startsWith('video') || ext==='tl4' || _header.category_type==='video';
+
+  document.getElementById('dropZone').style.display='none';
+  const fi = document.getElementById('fileInfo');
+  fi.style.display='flex'; fi.style.flexDirection='column';
+
+  const extIconMap={tl3:'🎵',tl4:'🎬',tlg:'🖼️',tld:'📄',tle:'📦',tl:'🎵'};
+  const ftIconMap ={'audio':'🎵','video':'🎬','image':'🖼️','application':'📄'};
+  const icon = extIconMap[ext] || ftIconMap[ft.split('/')[0]] || '📄';
+  document.getElementById('coverIcon').textContent = icon;
+
+  document.getElementById('fileTitle').textContent  = _header.title||'제목 없음';
+  document.getElementById('fileArtist').textContent = _header.artist||_header.creatorName||'—';
+  document.getElementById('fileMeta').textContent   =
+    [_shareId ? 'ID:'+(_shareId+'').slice(0,8)+'...' : '',
+     fmt(parsed.fileSize),
+     parsed.needsServerDecrypt ? '🌐 서버복호화' : '🔒 로컬복호화'
+    ].filter(Boolean).join(' · ');
+  document.getElementById('durEl').textContent = fmtTime(_header.duration||0);
+  document.getElementById('videoWrap').style.display = _isVideo ? 'block' : 'none';
+
+  await updateTLDisplay();
+  setTimeout(function(){ togglePlay(); }, 400);
+};
+
+// ── TL tick ──
 function startTick(){
   stopTick();
   _tickTimer = setInterval(async()=>{
-    if(!_playing||!_shareId) return;
+    if(!_playing || !_shareId) return;
     const res = await tlAPI.tlTick({
-      shareId:_shareId, token:_token,
-      deduct_rate: _header?.tl_per_sec||1.0
+      shareId: _shareId, token: _token,
+      deduct_rate: _header?.tl_per_sec || 1.0,
     });
-    if(res.code==='TL_EMPTY'){
+    if(res.code==='TL_EMPTY' || res.tl_balance===0){
       stopPlayback();
-      setStatus('playerStatus','⚡ TL 소진 — 재생이 중단됩니다.','error');
+      document.getElementById('tlEmptyBanner').classList.add('show');
+      setStatus('⚡ TL 소진 — 재생 중단', 'error');
     } else if(res.ok && _user){
       _user.tl = res.tl_balance;
       updateTLDisplay();
     }
-  },1000);
+  }, 1000);
 }
 function stopTick(){ if(_tickTimer){ clearInterval(_tickTimer); _tickTimer=null; } }
 
 // ── 진행바 ──
 function onTimeUpdate(){
-  const dur = _audio.duration||_header?.duration||1;
-  const cur = _audio.currentTime||0;
+  const mediaEl = _isVideo ? _video : _audio;
+  const dur = mediaEl.duration || _header?.duration || 1;
+  const cur = mediaEl.currentTime || 0;
   document.getElementById('progressFill').style.width = (cur/dur*100).toFixed(1)+'%';
   document.getElementById('timeEl').textContent = fmtTime(Math.floor(cur));
 }
+
 function seekTo(e){
-  const bar = document.getElementById('progressWrap');
+  const bar = document.querySelector('.progress-wrap');
   const pct = e.offsetX / bar.offsetWidth;
-  const dur = _audio.duration||_header?.duration||0;
-  _audio.currentTime = pct*dur;
+  const mediaEl = _isVideo ? _video : _audio;
+  const dur = mediaEl.duration || _header?.duration || 0;
+  mediaEl.currentTime = pct * dur;
 }
-function seekRel(s){ _audio.currentTime = Math.max(0,(_audio.currentTime||0)+s); }
+
+function seekRel(s){
+  const mediaEl = _isVideo ? _video : _audio;
+  mediaEl.currentTime = Math.max(0, (mediaEl.currentTime||0) + s);
+}
 
 // ── 파일 열기 ──
 async function openFile(){
   const fp = await tlAPI.openFileDialog();
-  if(fp) loadTLFile(fp);
+  if(fp) await loadTLFile(fp);
 }
+
 function onDrop(e){
   e.preventDefault();
   document.getElementById('dropZone').classList.remove('drag-over');
@@ -352,28 +557,56 @@ function onDrop(e){
   if(fp) loadTLFile(fp);
 }
 
-// ── TL 잔액 업데이트 ──
+function resetPlayer(){
+  stopPlayback();
+  _header = null; _shareId = null; _isVideo = false;
+  document.getElementById('fileInfo').style.display='none';
+  document.getElementById('dropZone').style.display='flex';
+  document.getElementById('tlEmptyBanner').classList.remove('show');
+  document.getElementById('progressFill').style.width='0%';
+  document.getElementById('timeEl').textContent='0:00';
+  document.getElementById('durEl').textContent='0:00';
+  setStatus('');
+}
+
+// ── TL 잔액 표시 ──
 async function updateTLDisplay(){
   if(!_token||!_user) return;
   try{
     const r = await fetch(API+'/api/eco/wallet',{headers:{'Authorization':'Bearer '+_token}});
     if(r.ok){
       const d = await r.json();
-      const tl = (d.tl_p||0)+(d.tl_a||0)+(d.tl_b||0)||d.tl||0;
+      const w = d.wallet || d;
+      const tl = Number(w.tl_total||0)
+        || (Number(w.tl_p||0)+Number(w.tl_a||0)+Number(w.tl_b||0))
+        || Number(w.tl||0);
       if(_user) _user.tl = tl;
       document.getElementById('tlVal').textContent = Number(tl).toLocaleString()+' TL';
+
+      // TL 바 (최대값 기준)
+      if(_tlMax > 0){
+        const pct = Math.min(100, (tl/_tlMax)*100);
+        document.getElementById('tlBarFill').style.width = pct+'%';
+        document.getElementById('tlBarVal').textContent = Number(tl).toLocaleString();
+      }
     }
-  }catch(e){}
+  }catch(e){ console.error('[wallet]', e); }
 }
 
 // ── 유틸 ──
 function fmtTime(s){ const m=Math.floor(s/60); return m+':'+String(Math.floor(s%60)).padStart(2,'0'); }
-function fmt(b){ if(b<1024)return b+'B'; if(b<1048576)return (b/1024).toFixed(1)+'KB'; return (b/1048576).toFixed(1)+'MB'; }
-function setStatus(id,msg,type){
-  const el=document.getElementById(id);
-  if(!el)return;
+function fmt(b){ if(!b)return''; if(b<1024)return b+'B'; if(b<1048576)return (b/1024).toFixed(1)+'KB'; return (b/1048576).toFixed(1)+'MB'; }
+function setStatus(msg, type){
+  const el=document.getElementById('playerStatus');
+  if(!el) return;
   el.textContent=msg;
-  el.className='status'+(type?' '+type:'');
+  el.className='player-status'+(type?' '+type:'');
+}
+function setLoginStatus(msg, type){
+  const el=document.getElementById('loginStatus');
+  if(!el) return;
+  el.textContent=msg;
+  el.className='status-msg'+(type?' '+type:'');
 }
 </script>
 </body>
