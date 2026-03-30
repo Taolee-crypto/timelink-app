@@ -75,14 +75,26 @@ ipcMain.handle('parse-tl-file', async (event, fp) => {
     const tl_per_sec = Number(header.tl_per_sec || header.weight || 1.0);
     const tl_max     = Number(header.tl_max || header.file_tl || tl_balance);
 
-    // ── 로컬 XOR 복호화 ──
+    // ── 로컬 XOR 복호화 (백엔드 makeTLKey와 동일한 알고리즘) ──
     let decrypted = null;
-    const xorKey = header.xorKey || header.key || header.encKey || header.xor_key;
-    if (xorKey) {
-      const keyBytes = Buffer.from(String(xorKey), 'utf8');
-      const kl = keyBytes.length;
+    const xorSeed = header.xorKey || header.key || header.encKey || header.xor_key;
+    if (xorSeed) {
+      // makeTLKey: FNV-1a 해시 기반 256바이트 키 생성
+      const seed = xorSeed; // 이미 shareId+secret+TIMELINK_v1 형태로 저장됨
+      const key256 = new Uint8Array(256);
+      let h = 0x811c9dc5;
+      for (let i = 0; i < seed.length; i++) {
+        h ^= seed.charCodeAt(i);
+        h = Math.imul(h, 0x01000193) >>> 0;
+      }
+      for (let i = 0; i < 256; i++) {
+        h ^= (Math.imul(i, 0x9e3779b9)) >>> 0;
+        h = ((h << 13) | (h >>> 19)) >>> 0;
+        h = Math.imul(h, 0x01000193) >>> 0;
+        key256[i] = h & 0xff;
+      }
       const dec = Buffer.alloc(payload.length);
-      for (let i=0; i<payload.length; i++) dec[i] = payload[i] ^ keyBytes[i%kl];
+      for (let i = 0; i < payload.length; i++) dec[i] = payload[i] ^ key256[i % 256];
       decrypted = dec.toString('base64');
     }
 
