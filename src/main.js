@@ -93,39 +93,72 @@ ipcMain.handle('parse-tl-header', async (event, fp) => {
   } catch(e) { return { error: '헤더 파싱 오류: '+e.message }; }
 });
 
-// ── 2단계: 복호화 (백그라운드 / 재생 직전) ──
+// ── 2단계: Worker Thread로 복호화 (메인 프로세스 블로킹 없음) ──
+const { Worker, isMainThread, parentPort, workerData } = require('worker_threads');
+
+// 복호화 워커 코드 (인라인)
+const WORKER_CODE = `
+const { parentPort, workerData } = require('worker_threads');
+const fs = require('fs');
+try {
+  const { fp } = workerData;
+  const buf  = fs.readFileSync(fp);
+  const data = new Uint8Array(buf);
+  const hdrLen = data[6]|(data[7]<<8)|(data[8]<<16)|(data[9]<<24);
+  const header = JSON.parse(Buffer.from(data.slice(10,10+hdrLen)).toString('utf8'));
+  const payload = data.slice(10+hdrLen);
+  const xorSeed = header.xorKey ?? header.key ?? header.encKey ?? null;
+  if (!xorSeed) { parentPort.postMessage({ ok: false, error: 'no key' }); process.exit(); }
+  const seed = String(xorSeed);
+  const key256 = new Uint8Array(256);
+  let h = 0x811c9dc5;
+  for (let i=0; i<seed.length; i++) { h ^= seed.charCodeAt(i); h = (Math.imul(h,0x01000193))>>>0; }
+  for (let i=0; i<256; i++) {
+    h ^= (Math.imul(i,0x9e3779b9))>>>0;
+    h = ((h<<13)|(h>>>19))>>>0;
+    h = (Math.imul(h,0x01000193))>>>0;
+    key256[i] = h & 0xff;
+  }
+  const dec = Buffer.alloc(payload.length);
+  for (let i=0; i<payload.length; i++) dec[i] = payload[i] ^ key256[i%256];
+  parentPort.postMessage({ ok: true, b64: dec.toString('base64') });
+} catch(e) { parentPort.postMessage({ ok: false, error: e.message }); }
+`;
+
+// 워커 코드를 임시 파일로 저장
+const WORKER_PATH = path.join(app.getPath('userData'), 'tl_decrypt_worker.js');
+
+function ensureWorkerFile() {
+  try { fs.writeFileSync(WORKER_PATH, WORKER_CODE, 'utf8'); } catch(e) {}
+}
+
 function decryptFile(fp) {
-  // 이미 완료된 캐시
   if (_decryptCache.has(fp)) return Promise.resolve(_decryptCache.get(fp));
-  // 진행 중인 Promise 재사용
   if (_decryptQueue.has(fp)) return _decryptQueue.get(fp);
 
   const promise = new Promise((resolve) => {
     try {
-      const buf  = fs.readFileSync(fp);
-      const data = new Uint8Array(buf);
-      const hdrLen = data[6]|(data[7]<<8)|(data[8]<<16)|(data[9]<<24);
-      const header = JSON.parse(Buffer.from(data.slice(10,10+hdrLen)).toString('utf8'));
-      const payload = data.slice(10+hdrLen);
-      const xorSeed = header.xorKey ?? header.key ?? header.encKey ?? null;
-      if (!xorSeed) { resolve(null); return; }
-      const seed = String(xorSeed);
-      const key256 = new Uint8Array(256);
-      let h = 0x811c9dc5;
-      for (let i=0; i<seed.length; i++) { h ^= seed.charCodeAt(i); h = Math.imul(h,0x01000193)>>>0; }
-      for (let i=0; i<256; i++) {
-        h ^= Math.imul(i,0x9e3779b9)>>>0;
-        h = ((h<<13)|(h>>>19))>>>0;
-        h = Math.imul(h,0x01000193)>>>0;
-        key256[i] = h & 0xff;
-      }
-      const dec = Buffer.alloc(payload.length);
-      for (let i=0; i<payload.length; i++) dec[i] = payload[i] ^ key256[i%256];
-      const b64 = dec.toString('base64');
-      _decryptCache.set(fp, b64);
+      ensureWorkerFile();
+      const worker = new Worker(WORKER_PATH, { workerData: { fp } });
+      worker.once('message', (msg) => {
+        if (msg.ok) {
+          _decryptCache.set(fp, msg.b64);
+          _decryptQueue.delete(fp);
+          resolve(msg.b64);
+        } else {
+          _decryptQueue.delete(fp);
+          resolve(null);
+        }
+      });
+      worker.once('error', (e) => {
+        console.error('[worker error]', e.message);
+        _decryptQueue.delete(fp);
+        resolve(null);
+      });
+    } catch(e) {
       _decryptQueue.delete(fp);
-      resolve(b64);
-    } catch(e) { _decryptQueue.delete(fp); resolve(null); }
+      resolve(null);
+    }
   });
   _decryptQueue.set(fp, promise);
   return promise;
