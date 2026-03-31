@@ -8,7 +8,7 @@ let mainWindow = null;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 480, height: 780, minWidth: 400, minHeight: 640,
+    width: 420, height: 720, minWidth: 380, minHeight: 600,
     titleBarStyle: 'hiddenInset',
     backgroundColor: '#050508',
     icon: path.join(__dirname, '../assets/icon.png'),
@@ -46,121 +46,117 @@ app.on('open-file', (event, fp) => {
 });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 
-// ═══════════════════════════════════════════
+// ══════════════════════════════════════
 // IPC 핸들러
-// ═══════════════════════════════════════════
+// ══════════════════════════════════════
 
-// ── 파일 파싱 + 로컬 XOR 복호화 + tl_balance 읽기 ──
+// ── .tl 파일 파싱 ──
+// 헤더에서 tl_balance, xorKey 읽고 로컬 복호화
 ipcMain.handle('parse-tl-file', async (event, fp) => {
   try {
     const buf  = fs.readFileSync(fp);
     const data = new Uint8Array(buf);
 
-    // TLNK 매직 확인
+    // TLNK 매직
     if (data[0]!==0x54||data[1]!==0x4C||data[2]!==0x4E||data[3]!==0x4B) {
       return { error: '유효하지 않은 .tl 파일 (TLNK 헤더 없음)' };
     }
-
     const hdrLen = data[6]|(data[7]<<8)|(data[8]<<16)|(data[9]<<24);
-    if (hdrLen<=0||hdrLen>2097152) return { error: '헤더 크기 오류' };
+    if (hdrLen<=0||hdrLen>4*1024*1024) return { error: '헤더 크기 오류' };
 
-    const header = JSON.parse(Buffer.from(data.slice(10, 10+hdrLen)).toString('utf8'));
+    let header;
+    try {
+      header = JSON.parse(Buffer.from(data.slice(10, 10+hdrLen)).toString('utf8'));
+    } catch(e) {
+      return { error: '헤더 파싱 오류: '+e.message };
+    }
+
     const payload = data.slice(10+hdrLen);
+    if (payload.length===0) return { error: '파일 콘텐츠 없음' };
 
-    if (payload.length===0) return { error: '파일에 콘텐츠가 없습니다.' };
+    // ── 파일 자체의 TL 잔액 읽기 ──
+    const tl_balance = Number(header.tl_balance ?? header.tl_charged ?? 0);
+    const tl_per_sec = Number(header.tl_per_sec ?? header.weight ?? 1.0);
+    const tl_max     = Number(header.tl_max ?? header.file_tl ?? tl_balance);
 
-    // ── 핵심: 파일 자체의 TL 잔액 읽기 ──
-    // tl_balance: 파일에 충전된 TL (이게 소진되면 재생 불가)
-    const tl_balance = Number(header.tl_balance || header.tl_charged || 0);
-    const tl_per_sec = Number(header.tl_per_sec || header.weight || 1.0);
-    const tl_max     = Number(header.tl_max || header.file_tl || tl_balance);
-
-    // ── 로컬 XOR 복호화 (백엔드 makeTLKey와 동일한 알고리즘) ──
+    // ── XOR 복호화 (백엔드 makeTLKey 동일 알고리즘) ──
     let decrypted = null;
-    const xorSeed = header.xorKey || header.key || header.encKey || header.xor_key;
+    const xorSeed = header.xorKey ?? header.key ?? header.encKey ?? header.xor_key ?? null;
+
     if (xorSeed) {
-      // makeTLKey: FNV-1a 해시 기반 256바이트 키 생성
-      const seed = xorSeed; // 이미 shareId+secret+TIMELINK_v1 형태로 저장됨
+      // FNV-1a 기반 256바이트 키 생성
+      const seed = String(xorSeed);
       const key256 = new Uint8Array(256);
       let h = 0x811c9dc5;
-      for (let i = 0; i < seed.length; i++) {
+      for (let i=0; i<seed.length; i++) {
         h ^= seed.charCodeAt(i);
         h = Math.imul(h, 0x01000193) >>> 0;
       }
-      for (let i = 0; i < 256; i++) {
-        h ^= (Math.imul(i, 0x9e3779b9)) >>> 0;
-        h = ((h << 13) | (h >>> 19)) >>> 0;
+      for (let i=0; i<256; i++) {
+        h ^= Math.imul(i, 0x9e3779b9) >>> 0;
+        h = ((h<<13)|(h>>>19)) >>> 0;
         h = Math.imul(h, 0x01000193) >>> 0;
         key256[i] = h & 0xff;
       }
       const dec = Buffer.alloc(payload.length);
-      for (let i = 0; i < payload.length; i++) dec[i] = payload[i] ^ key256[i % 256];
+      for (let i=0; i<payload.length; i++) dec[i] = payload[i] ^ key256[i%256];
       decrypted = dec.toString('base64');
     }
 
     return {
       ok: true,
       header,
-      tl_balance,   // 파일에 충전된 TL 잔액
-      tl_per_sec,   // 초당 차감량
-      tl_max,       // 최초 충전량 (프로그레스바용)
-      fileSize: data.length,
+      tl_balance,
+      tl_per_sec,
+      tl_max,
+      fileSize:  data.length,
       decrypted,
       needsServerDecrypt: !decrypted,
-      filePath: fp,
     };
   } catch(e) {
-    return { error: '파싱 오류: ' + e.message };
+    return { error: '파싱 오류: '+e.message };
   }
 });
 
-// ── 파일의 tl_balance 업데이트 (로컬 차감) ──
+// ── 파일 TL 잔액 업데이트 (차감 후 파일에 저장) ──
 ipcMain.handle('update-tl-balance', async (event, { filePath, newBalance }) => {
   try {
     const buf  = fs.readFileSync(filePath);
     const data = new Uint8Array(buf);
-
     const hdrLen = data[6]|(data[7]<<8)|(data[8]<<16)|(data[9]<<24);
-    const hdrBytes = Buffer.from(data.slice(10, 10+hdrLen));
-    const header = JSON.parse(hdrBytes.toString('utf8'));
-
-    // tl_balance 업데이트
-    header.tl_balance = Math.max(0, newBalance);
-
-    const newHdrBytes = Buffer.from(JSON.stringify(header), 'utf8');
-    const newHdrLen   = newHdrBytes.length;
-
-    // 헤더 크기가 바뀌면 전체 재조합
+    const header = JSON.parse(Buffer.from(data.slice(10,10+hdrLen)).toString('utf8'));
+    header.tl_balance = Math.max(0, Number(newBalance));
+    const newHdr  = Buffer.from(JSON.stringify(header),'utf8');
+    const lenBuf  = Buffer.alloc(4); lenBuf.writeUInt32LE(newHdr.length, 0);
     const magic   = Buffer.from([0x54,0x4C,0x4E,0x4B,0x01,0x00]);
-    const lenBuf  = Buffer.alloc(4);
-    lenBuf.writeUInt32LE(newHdrLen, 0);
     const payload = data.slice(10+hdrLen);
-    const newBuf  = Buffer.concat([magic, lenBuf, newHdrBytes, Buffer.from(payload)]);
-
-    fs.writeFileSync(filePath, newBuf);
+    fs.writeFileSync(filePath, Buffer.concat([magic, lenBuf, newHdr, Buffer.from(payload)]));
     return { ok: true, tl_balance: header.tl_balance };
   } catch(e) {
     return { error: e.message };
   }
 });
 
-// ── 재충전: 서버에 결제 요청 → 창작자/플랫폼 분배 → 파일 TL 업데이트 ──
+// ── 재충전: 서버 결제 → 창작자/플랫폼 분배 → 파일 TL 업데이트 ──
 ipcMain.handle('recharge-tl', async (event, { filePath, shareId, token, amount }) => {
-  // shareId 없으면 로컬 충전만 (오프라인 테스트용)
-  if (!shareId || shareId === 'undefined' || shareId === 'null') {
+  const updateFile = (newBalance) => {
     try {
-      const buf  = fs.readFileSync(filePath);
-      const data = new Uint8Array(buf);
-      const hdrLen = data[6]|(data[7]<<8)|(data[8]<<16)|(data[9]<<24);
-      const header = JSON.parse(Buffer.from(data.slice(10,10+hdrLen)).toString('utf8'));
-      header.tl_balance = amount;
-      const newHdrBytes = Buffer.from(JSON.stringify(header),'utf8');
-      const lenBuf = Buffer.alloc(4); lenBuf.writeUInt32LE(newHdrBytes.length,0);
+      const buf   = fs.readFileSync(filePath);
+      const data  = new Uint8Array(buf);
+      const hdrLen= data[6]|(data[7]<<8)|(data[8]<<16)|(data[9]<<24);
+      const hdr   = JSON.parse(Buffer.from(data.slice(10,10+hdrLen)).toString('utf8'));
+      hdr.tl_balance = newBalance;
+      const newHdr = Buffer.from(JSON.stringify(hdr),'utf8');
+      const lenBuf = Buffer.alloc(4); lenBuf.writeUInt32LE(newHdr.length,0);
       const magic  = Buffer.from([0x54,0x4C,0x4E,0x4B,0x01,0x00]);
-      const payload = data.slice(10+hdrLen);
-      fs.writeFileSync(filePath, Buffer.concat([magic,lenBuf,newHdrBytes,Buffer.from(payload)]));
-      return { ok:true, new_balance:amount, local_only:true };
-    } catch(e) { return { error: '파일 업데이트 실패: '+e.message }; }
+      fs.writeFileSync(filePath, Buffer.concat([magic,lenBuf,newHdr,Buffer.from(data.slice(10+hdrLen))]));
+    } catch(e) { console.error('[updateFile]', e.message); }
+  };
+
+  // shareId 없으면 로컬 충전 (테스트용)
+  if (!shareId || shareId==='undefined' || shareId==='null') {
+    updateFile(amount);
+    return { ok: true, new_balance: amount, local_only: true };
   }
 
   return new Promise((resolve) => {
@@ -170,7 +166,7 @@ ipcMain.handle('recharge-tl', async (event, { filePath, shareId, token, amount }
       path:     '/api/shares/'+shareId+'/charge',
       method:   'POST',
       headers:  {
-        'Authorization': 'Bearer '+token,
+        'Authorization': 'Bearer '+(token||''),
         'Content-Type':  'application/json',
         'Content-Length': Buffer.byteLength(body),
       },
@@ -180,32 +176,25 @@ ipcMain.handle('recharge-tl', async (event, { filePath, shareId, token, amount }
       res.on('end', () => {
         try {
           const r = JSON.parse(d);
-          if (!r.ok) { resolve({ error: r.error||'충전 실패' }); return; }
-          const newBalance = r.new_balance || amount;
-          // 파일 tl_balance 업데이트
-          try {
-            const buf  = fs.readFileSync(filePath);
-            const data2 = new Uint8Array(buf);
-            const hdrLen = data2[6]|(data2[7]<<8)|(data2[8]<<16)|(data2[9]<<24);
-            const header = JSON.parse(Buffer.from(data2.slice(10,10+hdrLen)).toString('utf8'));
-            header.tl_balance = newBalance;
-            const newHdrBytes = Buffer.from(JSON.stringify(header),'utf8');
-            const lenBuf = Buffer.alloc(4); lenBuf.writeUInt32LE(newHdrBytes.length,0);
-            const magic  = Buffer.from([0x54,0x4C,0x4E,0x4B,0x01,0x00]);
-            const payload = data2.slice(10+hdrLen);
-            fs.writeFileSync(filePath, Buffer.concat([magic,lenBuf,newHdrBytes,Buffer.from(payload)]));
-          } catch(fe) { console.error('[recharge file update]', fe.message); }
-          resolve({ ok:true, new_balance:newBalance, creator_share:r.creator_share, platform_share:r.platform_share });
-        } catch(e) { resolve({ error: '응답 파싱 오류: '+e.message }); }
+          if (!r.ok) { resolve({ error: r.error||'충전 실패 ('+res.statusCode+')' }); return; }
+          const nb = r.new_balance || amount;
+          updateFile(nb);
+          resolve({ ok:true, new_balance:nb, creator_share:r.creator_share, platform_share:r.platform_share });
+        } catch(e) { resolve({ error: '응답 오류: '+e.message }); }
       });
     });
-    req.on('error', e => resolve({ error: '네트워크 오류: '+e.message }));
+    req.on('error', e => {
+      // 네트워크 오류 시 로컬 충전으로 폴백
+      updateFile(amount);
+      resolve({ ok: true, new_balance: amount, local_only: true });
+    });
     req.write(body); req.end();
   });
 });
 
-// ── POC 기여도 기록 (청취 활동) ──
+// ── POC 기록 (오프라인이어도 OK) ──
 ipcMain.handle('record-poc', async (event, { shareId, token, seconds, deduct_rate }) => {
+  if (!shareId || !token) return { ok: true };
   return new Promise((resolve) => {
     const body = JSON.stringify({ seconds, deduct_rate, source: 'offline_player' });
     const opts = {
@@ -220,9 +209,9 @@ ipcMain.handle('record-poc', async (event, { shareId, token, seconds, deduct_rat
     };
     const req = https.request(opts, (res) => {
       let d=''; res.on('data',c=>d+=c);
-      res.on('end',()=>{ try{resolve(JSON.parse(d));}catch(e){resolve({ok:true});} });
+      res.on('end', ()=>{ try{resolve(JSON.parse(d));}catch(e){resolve({ok:true});} });
     });
-    req.on('error', () => resolve({ ok: true })); // POC는 오프라인이어도 OK
+    req.on('error', ()=>resolve({ok:true})); // 오프라인이어도 OK
     req.write(body); req.end();
   });
 });
@@ -239,10 +228,36 @@ ipcMain.handle('login', async (event, { email, password }) => {
     };
     const req = https.request(opts, (res) => {
       let d=''; res.on('data',c=>d+=c);
-      res.on('end',()=>{ try{resolve({ok:res.statusCode<300, ...JSON.parse(d)});}catch(e){resolve({error:e.message});} });
+      res.on('end',()=>{ try{resolve({ok:res.statusCode<300,...JSON.parse(d)});}catch(e){resolve({error:e.message});} });
     });
-    req.on('error', e => resolve({ error: e.message }));
+    req.on('error', e=>resolve({error:e.message}));
     req.write(body); req.end();
+  });
+});
+
+// ── 내 TL 잔액 조회 ──
+ipcMain.handle('get-my-tl', async (event, { token }) => {
+  if (!token) return { ok: false, tl: 0 };
+  return new Promise((resolve) => {
+    const opts = {
+      hostname: 'api.timelink.digital',
+      path:     '/api/eco/wallet',
+      method:   'GET',
+      headers:  { 'Authorization': 'Bearer '+token },
+    };
+    const req = https.request(opts, (res) => {
+      let d=''; res.on('data',c=>d+=c);
+      res.on('end',()=>{
+        try {
+          const j = JSON.parse(d);
+          const w = j.wallet||j;
+          const tl = Number(w.tl_total||0)||(Number(w.tl_p||0)+Number(w.tl_a||0)+Number(w.tl_b||0))||Number(w.tl||0);
+          resolve({ ok:true, tl, tl_p:Number(w.tl_p||0), tl_a:Number(w.tl_a||0), tl_b:Number(w.tl_b||0) });
+        } catch(e) { resolve({ok:false,tl:0}); }
+      });
+    });
+    req.on('error', ()=>resolve({ok:false,tl:0}));
+    req.end();
   });
 });
 
@@ -251,17 +266,15 @@ ipcMain.handle('open-file-dialog', async () => {
   const r = await dialog.showOpenDialog(mainWindow, {
     title: 'TL 파일 열기',
     filters: [{ name: 'TimeLink Files', extensions: ['tl','tl3','tl4','tlg','tld','tle'] }],
-    properties: ['openFile'],
+    properties: ['openFile', 'multiSelections'],
   });
-  return r.canceled ? null : r.filePaths[0];
+  return r.canceled ? null : r.filePaths;
 });
 
-// ── 토큰 저장/로드 ──
+// ── 저장소 ──
 const STORE = path.join(app.getPath('userData'), 'tl_auth.json');
-ipcMain.handle('store-get', (e, k) => {
-  try { return JSON.parse(fs.readFileSync(STORE,'utf8'))[k]; } catch { return null; }
-});
-ipcMain.handle('store-set', (e, k, v) => {
+ipcMain.handle('store-get', (e,k) => { try{return JSON.parse(fs.readFileSync(STORE,'utf8'))[k];}catch{return null;} });
+ipcMain.handle('store-set', (e,k,v) => {
   let d={}; try{d=JSON.parse(fs.readFileSync(STORE,'utf8'));}catch{}
   d[k]=v; fs.writeFileSync(STORE,JSON.stringify(d),'utf8');
 });
