@@ -50,10 +50,28 @@ app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(
 // IPC 핸들러
 // ══════════════════════════════════════
 
+// ── .tl 파일 파싱 캐시 ──
+const _parseCache = new Map(); // filePath → {result, mtime}
+
 // ── .tl 파일 파싱 ──
 // 헤더에서 tl_balance, xorKey 읽고 로컬 복호화
 ipcMain.handle('parse-tl-file', async (event, fp) => {
   try {
+    // 캐시 확인 (파일 수정 시간 기준)
+    const stat = fs.statSync(fp);
+    const mtime = stat.mtimeMs;
+    const cached = _parseCache.get(fp);
+    if (cached && cached.mtime === mtime) {
+      // tl_balance는 항상 파일에서 최신값으로
+      const freshBuf = fs.readFileSync(fp);
+      const freshData = new Uint8Array(freshBuf);
+      const hdrLen = freshData[6]|(freshData[7]<<8)|(freshData[8]<<16)|(freshData[9]<<24);
+      const freshHdr = JSON.parse(Buffer.from(freshData.slice(10,10+hdrLen)).toString('utf8'));
+      cached.result.tl_balance = Number(freshHdr.tl_balance ?? 0);
+      cached.result.header.tl_balance = cached.result.tl_balance;
+      return cached.result;
+    }
+
     const buf  = fs.readFileSync(fp);
     const data = new Uint8Array(buf);
 
@@ -103,7 +121,7 @@ ipcMain.handle('parse-tl-file', async (event, fp) => {
       decrypted = dec.toString('base64');
     }
 
-    return {
+    const result = {
       ok: true,
       header,
       tl_balance,
@@ -113,6 +131,9 @@ ipcMain.handle('parse-tl-file', async (event, fp) => {
       decrypted,
       needsServerDecrypt: !decrypted,
     };
+    // 캐시 저장 (decrypted 포함 — 복호화는 한 번만)
+    _parseCache.set(fp, { mtime, result });
+    return result;
   } catch(e) {
     return { error: '파싱 오류: '+e.message };
   }
