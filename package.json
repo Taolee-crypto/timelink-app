@@ -47,7 +47,7 @@
     "win": {
       "target": "nsis",
       "icon": "assets/icon.ico",
-      "artifactName": "TimeLink-Player-Setup.exe"
+      "artifactName": "TimeLink-Player-Setup-${version}.exe"
     },
     "mac": {
       "target": "dmg",
