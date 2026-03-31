@@ -325,6 +325,7 @@ let _fileTL=0, _fileTLMax=0, _tlPerSec=1;
 const _audio=document.getElementById('audioEl');
 const _video=document.getElementById('videoEl');
 let _tick=null, _pocBuf=0;
+const _blobCache = new Map(); // filePath → blobUrl
 
 // ── 초기화 ──
 (async function(){
@@ -436,14 +437,25 @@ async function addToPlaylist(fps, autoPlay=false){
     _playlist.push(track);
     if(!firstNew) firstNew = _playlist.length-1;
 
-    // ★ 2단계: 백그라운드에서 복호화 (재생 전에 완료되도록)
+    // ★ 2단계: 백그라운드에서 복호화 + Blob URL 미리 생성
     const idx = _playlist.length-1;
     _playlist[idx].decrypting = true;
     tlAPI.decryptFile(fp).then(res => {
-      if(_playlist[idx]) {
-        _playlist[idx].decrypted  = res.decrypted;
-        _playlist[idx].decrypting = false;
+      if(!_playlist[idx]) return;
+      _playlist[idx].decrypted  = res.decrypted;
+      _playlist[idx].decrypting = false;
+      // Blob URL 미리 생성 (재생 시 즉시 사용)
+      if(res.decrypted && !_blobCache.has(fp)){
+        try{
+          const hdr  = _playlist[idx].header;
+          const isV  = _playlist[idx].isVideo;
+          const mime = hdr?.fileType || (isV ? 'video/mp4' : 'audio/mpeg');
+          const bytes = Uint8Array.from(atob(res.decrypted), c=>c.charCodeAt(0));
+          const url   = URL.createObjectURL(new Blob([bytes],{type:mime}));
+          _blobCache.set(fp, url);
+        }catch(e){ console.warn('[blob preload]', e); }
       }
+      renderPlaylist();
     });
   }
   renderPlaylist();
@@ -486,36 +498,40 @@ async function playTrack(idx){
 async function doPlay(t){
   document.getElementById('playBtn').textContent='⏳';
 
-  // ★ 백그라운드 복호화 완료 대기 (보통 이미 완료됨)
-  let b64 = t.decrypted;
-  if(!b64){
+  // ★ Blob URL 캐시 먼저 확인 (가장 빠름)
+  let blobUrl = _blobCache.get(t.filePath) || null;
+
+  if(!blobUrl){
+    // 복호화 완료 대기 (백그라운드 진행 중)
     if(t.decrypting){
-      setSt('⏳ 복호화 준비 중... (잠깐만요)','warn');
-      // 최대 30초 대기
+      setSt('⏳ 준비 중... (잠깐만요)','warn');
       for(let i=0; i<300; i++){
         await new Promise(r=>setTimeout(r,100));
-        if(t.decrypted){ b64=t.decrypted; break; }
+        if(_blobCache.has(t.filePath)){ blobUrl=_blobCache.get(t.filePath); break; }
         if(!t.decrypting){ break; }
       }
     }
-    if(!b64){
-      // 직접 복호화 시도
+    // 그래도 없으면 직접 복호화
+    if(!blobUrl){
       setSt('⏳ 복호화 중...','warn');
       const res = await tlAPI.decryptFile(t.filePath);
-      b64 = res.decrypted;
-      if(t) t.decrypted = b64;
+      if(!res.decrypted){
+        setSt('❌ 복호화 실패 — 파일을 다시 다운로드하세요','error');
+        document.getElementById('playBtn').textContent='▶';
+        return;
+      }
+      t.decrypted = res.decrypted;
+      const mime2 = t.header?.fileType||(_isVideo?'video/mp4':'audio/mpeg');
+      const bytes2 = Uint8Array.from(atob(res.decrypted), c=>c.charCodeAt(0));
+      blobUrl = URL.createObjectURL(new Blob([bytes2],{type:mime2}));
+      _blobCache.set(t.filePath, blobUrl);
     }
   }
-  if(!b64){
-    setSt('❌ 복호화 실패 — 파일을 다시 다운로드하세요','error');
-    document.getElementById('playBtn').textContent='▶';
-    return;
-  }
-  setSt('⏳ 재생 준비 중...');
+
+  setSt('');
   try{
-    const bytes = Uint8Array.from(atob(b64), c=>c.charCodeAt(0));
     const mime  = _header?.fileType||(_isVideo?'video/mp4':'audio/mpeg');
-    const url   = URL.createObjectURL(new Blob([bytes],{type:mime}));
+    const url   = blobUrl;
     const el    = _isVideo?_video:_audio;
     el.src=url; el.ontimeupdate=onTU; el.onended=()=>nextTrack();
     el.onerror=()=>{setSt('❌ 재생 오류 ['+mime+']','error'); document.getElementById('playBtn').textContent='▶';};
@@ -548,11 +564,15 @@ async function togglePlay(){
 
 function stopPB(clearStatus=true){
   _playing=false;
-  _audio.pause(); _video.pause();
+  // audio/video 완전 정지 및 src 해제
+  _audio.pause(); _audio.removeAttribute('src'); _audio.load();
+  _video.pause(); _video.removeAttribute('src'); _video.load();
   document.getElementById('playBtn').textContent='▶';
   document.getElementById('playBtn').classList.remove('on');
   document.getElementById('discEl').classList.remove('playing');
   document.getElementById('eqMini').classList.remove('on');
+  document.getElementById('progFill').style.width='0%';
+  document.getElementById('timeEl').textContent='0:00';
   if(clearStatus) setSt('');
   flushPOC(); stopTick(); renderPlaylist();
 }
@@ -561,9 +581,15 @@ function prevTrack(){ if(_curIdx>0) playTrack(_curIdx-1); }
 function nextTrack(){ if(_curIdx<_playlist.length-1) playTrack(_curIdx+1); else stopPB(); }
 
 function removeTrack(idx){
+  const fp = _playlist[idx]?.filePath;
   if(idx===_curIdx){stopPB(); _curIdx=-1; _filePath=null;}
   else if(idx<_curIdx) _curIdx--;
   _playlist.splice(idx,1);
+  // Blob URL 해제
+  if(fp && _blobCache.has(fp)){
+    URL.revokeObjectURL(_blobCache.get(fp));
+    _blobCache.delete(fp);
+  }
   renderPlaylist();
   if(_playlist.length===0){ resetDisplay(); }
 }
