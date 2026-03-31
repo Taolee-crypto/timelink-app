@@ -3,204 +3,226 @@
 <head>
 <meta charset="UTF-8">
 <title>TimeLink Player</title>
-<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
-  --bg:#050508;--bg2:#0A0A12;--bg3:#0F0F1C;
+  --bg:#050508;--bg2:#0A0A14;--bg3:#10101E;
   --purple:#7C3AED;--purple2:#A855F7;
-  --mint:#00E5A0;--mint2:#00FFC4;
-  --rose:#FF4D6D;--gold:#F59E0B;
-  --t1:#F8FAFC;--t2:#94A3B8;--t3:#475569;
-  --bd:rgba(255,255,255,.06);--bd2:rgba(255,255,255,.12);
-  --gp:rgba(124,58,237,.3);--gm:rgba(0,229,160,.2);
+  --mint:#00E5A0;--rose:#FF4D6D;--gold:#F59E0B;
+  --t1:#F1F5F9;--t2:#94A3B8;--t3:#475569;
+  --bd:rgba(255,255,255,.07);--bd2:rgba(255,255,255,.13);
+  --gp:rgba(124,58,237,.3);
 }
 *{-webkit-user-select:none;user-select:none}
 body{background:var(--bg);color:var(--t1);font-family:'DM Sans',sans-serif;
-  height:100vh;display:flex;flex-direction:column;overflow:hidden;}
-body::before{content:'';position:fixed;width:500px;height:500px;
-  background:radial-gradient(circle,rgba(124,58,237,.06),transparent 70%);
-  top:-100px;left:-100px;pointer-events:none;z-index:0;}
+  height:100vh;display:flex;flex-direction:column;overflow:hidden}
 
 /* 타이틀바 */
-.titlebar{height:38px;-webkit-app-region:drag;display:flex;align-items:center;
-  padding:0 14px;gap:8px;background:rgba(5,5,8,.95);border-bottom:1px solid var(--bd);
-  flex-shrink:0;z-index:10;position:relative;}
-.tb-logo{width:22px;height:22px;border-radius:5px;
+.titlebar{
+  height:38px;-webkit-app-region:drag;
+  display:flex;align-items:center;padding:0 14px;gap:8px;
+  background:rgba(5,5,8,.95);border-bottom:1px solid var(--bd);flex-shrink:0;
+}
+.tb-logo{width:20px;height:20px;border-radius:5px;
   background:linear-gradient(135deg,var(--purple),var(--mint));
   display:flex;align-items:center;justify-content:center;
-  font-family:'Orbitron',monospace;font-size:8px;font-weight:900;color:#fff;}
-.tb-name{font-family:'Orbitron',monospace;font-size:9px;font-weight:700;letter-spacing:.15em;
-  background:linear-gradient(135deg,var(--t1),var(--t2));
-  -webkit-background-clip:text;-webkit-text-fill-color:transparent;}
-.tb-ver{font-size:8px;color:var(--t3);font-family:'Orbitron',monospace;margin-left:auto;}
+  font-family:'Orbitron',monospace;font-size:7px;font-weight:900;color:#fff}
+.tb-name{font-family:'Orbitron',monospace;font-size:9px;font-weight:700;letter-spacing:.15em;color:var(--t2)}
+.tb-ver{font-size:8px;color:var(--t3);font-family:monospace;margin-left:auto}
 
-/* 상단 유저/TL 바 */
-.top-bar{display:flex;align-items:center;padding:6px 12px;gap:8px;
-  background:rgba(5,5,8,.9);border-bottom:1px solid var(--bd);flex-shrink:0;}
-.tb-user{font-size:10px;color:var(--t3);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.tb-my-tl{display:flex;align-items:center;gap:4px;padding:3px 8px;border-radius:12px;
+/* 유저 바 */
+.user-bar{
+  display:flex;align-items:center;padding:5px 12px;gap:8px;
+  background:var(--bg2);border-bottom:1px solid var(--bd);flex-shrink:0;
+}
+.ub-info{font-size:10px;color:var(--t3);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ub-tl{display:flex;align-items:center;gap:4px;padding:3px 8px;border-radius:10px;
   background:rgba(0,229,160,.07);border:1px solid rgba(0,229,160,.15);}
-.tb-my-tl-val{font-size:10px;font-weight:700;color:var(--mint);font-family:'Orbitron',monospace;}
-.tb-login-btn{padding:4px 10px;border-radius:6px;border:1px solid rgba(124,58,237,.3);
-  background:rgba(124,58,237,.08);color:var(--purple2);font-size:10px;font-weight:600;
-  cursor:pointer;font-family:'DM Sans',sans-serif;white-space:nowrap;}
-.tb-logout-btn{width:26px;height:26px;border-radius:6px;border:1px solid var(--bd);
+.ub-tl-val{font-size:10px;font-weight:700;color:var(--mint);font-family:monospace}
+.ub-login-btn{padding:3px 10px;border-radius:6px;border:1px solid rgba(124,58,237,.3);
+  background:rgba(124,58,237,.08);color:var(--purple2);font-size:10px;
+  cursor:pointer;font-family:'DM Sans',sans-serif}
+.ub-logout{width:24px;height:24px;border-radius:5px;border:1px solid var(--bd);
   background:transparent;color:var(--t3);font-size:10px;cursor:pointer;
-  display:flex;align-items:center;justify-content:center;}
+  display:flex;align-items:center;justify-content:center}
 
-/* 로그인 패널 (상단 드롭다운) */
-.login-panel{position:absolute;top:76px;left:0;right:0;z-index:100;
+/* 로그인 패널 */
+.login-panel{
+  position:absolute;top:64px;left:0;right:0;z-index:200;
   background:var(--bg2);border-bottom:1px solid var(--bd);
-  padding:16px;display:none;flex-direction:column;gap:8px;align-items:center;}
-.login-panel.show{display:flex;}
-.lp-title{font-size:12px;font-weight:700;color:var(--t2);margin-bottom:4px;}
-.lp-inp{width:100%;max-width:260px;padding:8px 12px;border-radius:8px;
+  padding:14px 16px;display:none;flex-direction:column;gap:8px;align-items:center;
+}
+.login-panel.show{display:flex}
+.lp-inp{width:100%;max-width:280px;padding:8px 12px;border-radius:8px;
   border:1px solid var(--bd2);background:rgba(255,255,255,.03);
-  color:var(--t1);font-size:12px;font-family:'DM Sans',sans-serif;
-  outline:none;-webkit-user-select:text;user-select:text;}
-.lp-inp:focus{border-color:var(--purple2);}
-.lp-inp::placeholder{color:var(--t3);}
-.lp-btn{width:100%;max-width:260px;padding:9px;border-radius:8px;border:none;
+  color:var(--t1);font-size:12px;outline:none;
+  -webkit-user-select:text;user-select:text;font-family:'DM Sans',sans-serif}
+.lp-inp::placeholder{color:var(--t3)}
+.lp-inp:focus{border-color:var(--purple2)}
+.lp-btn{width:100%;max-width:280px;padding:9px;border-radius:8px;border:none;
   background:linear-gradient(135deg,var(--purple),var(--purple2));
-  color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;}
-.lp-st{font-size:10px;color:var(--t3);min-height:14px;}
-.lp-st.error{color:var(--rose);} .lp-st.ok{color:var(--mint);}
+  color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif}
+.lp-err{font-size:10px;color:var(--rose);text-align:center}
 
 /* 메인 */
-.main{flex:1;display:flex;flex-direction:column;overflow:hidden;position:relative;z-index:1;}
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;position:relative}
+
+/* ── 비디오 영역 ── */
+.video-area{
+  background:#000;display:none;position:relative;flex-shrink:0;
+  border-bottom:1px solid var(--bd);
+}
+.video-area.show{display:block}
+.video-area video{width:100%;height:200px;display:block;object-fit:contain}
+.video-fullscreen-btn{
+  position:absolute;bottom:8px;right:8px;
+  width:28px;height:28px;border-radius:6px;
+  background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.2);
+  color:#fff;font-size:12px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  -webkit-app-region:no-drag;transition:all .2s;
+}
+.video-fullscreen-btn:hover{background:rgba(124,58,237,.6)}
 
 /* ── 현재 재생 ── */
-.now-playing{flex-shrink:0;background:var(--bg2);border-bottom:1px solid var(--bd);}
-.video-wrap{background:#000;display:none;}
-.video-wrap video{width:100%;max-height:150px;display:block;object-fit:contain;}
+.now-playing{flex-shrink:0;background:var(--bg2);border-bottom:1px solid var(--bd)}
 
-.disc-row{display:flex;align-items:center;gap:12px;padding:12px 14px 8px;}
-.disc{width:52px;height:52px;border-radius:50%;flex-shrink:0;position:relative;
+.cover-row{display:flex;align-items:center;gap:12px;padding:12px 14px 8px}
+.disc{
+  width:52px;height:52px;border-radius:50%;flex-shrink:0;position:relative;
   background:conic-gradient(from 0deg,#1a0a2e,#0a0a18 60deg,#1e0a3e 120deg,
-    #0a1a2e 180deg,#0a0a18 240deg,#2a0a3e 300deg,#1a0a2e 360deg);
+    #0a1a2e 180deg,#0a0a18 240deg,#2a0a3e 300deg,#1a0a2e);
   border:2px solid rgba(124,58,237,.25);
   display:flex;align-items:center;justify-content:center;
-  box-shadow:0 0 16px var(--gp);}
-.disc.playing{animation:spin 6s linear infinite;box-shadow:0 0 24px var(--gp),0 0 40px rgba(0,229,160,.06);}
-@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
-.disc::before{content:'';position:absolute;width:68%;height:68%;border-radius:50%;border:1px solid rgba(255,255,255,.05);}
+  box-shadow:0 0 16px var(--gp);
+}
+.disc::before{content:'';position:absolute;width:68%;height:68%;border-radius:50%;
+  border:1px solid rgba(255,255,255,.05)}
+.disc.spin{animation:spin 6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
 .disc-c{width:16px;height:16px;border-radius:50%;
   background:linear-gradient(135deg,var(--purple),var(--mint));
   font-size:5px;font-weight:900;color:#fff;font-family:'Orbitron',monospace;
-  display:flex;align-items:center;justify-content:center;z-index:1;}
-.np-info{flex:1;min-width:0;}
-.np-title{font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.np-artist{font-size:10px;color:var(--t3);margin-top:2px;}
-.eq-mini{display:flex;align-items:flex-end;gap:2px;height:14px;opacity:0;transition:opacity .3s;flex-shrink:0;}
-.eq-mini.on{opacity:1;}
-.eq-m{width:3px;border-radius:1px;background:linear-gradient(to top,var(--purple),var(--mint2));}
-.eq-mini.on .eq-m:nth-child(1){animation:eq .6s ease-in-out infinite alternate;height:40%;}
-.eq-mini.on .eq-m:nth-child(2){animation:eq .4s ease-in-out infinite alternate .1s;height:100%;}
-.eq-mini.on .eq-m:nth-child(3){animation:eq .5s ease-in-out infinite alternate .05s;height:70%;}
-.eq-mini.on .eq-m:nth-child(4){animation:eq .7s ease-in-out infinite alternate .15s;height:50%;}
+  display:flex;align-items:center;justify-content:center;z-index:1}
+.np-info{flex:1;min-width:0}
+.np-title{font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.np-artist{font-size:10px;color:var(--t3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.np-type{font-size:9px;font-family:monospace;padding:2px 6px;border-radius:4px;margin-top:3px;
+  display:inline-block;background:rgba(124,58,237,.15);color:var(--purple2)}
+
+/* EQ */
+.eq{display:flex;align-items:flex-end;gap:2px;height:14px;opacity:0;transition:opacity .3s;flex-shrink:0}
+.eq.on{opacity:1}
+.eq-b{width:3px;border-radius:1px;background:linear-gradient(to top,var(--purple),var(--mint))}
+.eq.on .eq-b:nth-child(1){animation:eq .6s ease-in-out infinite alternate;height:35%}
+.eq.on .eq-b:nth-child(2){animation:eq .4s ease-in-out infinite alternate .1s;height:100%}
+.eq.on .eq-b:nth-child(3){animation:eq .5s ease-in-out infinite alternate .05s;height:65%}
+.eq.on .eq-b:nth-child(4){animation:eq .7s ease-in-out infinite alternate .15s;height:45%}
 @keyframes eq{0%{transform:scaleY(.2)}100%{transform:scaleY(1)}}
 
-/* ── 파일 TL 잔액 (핵심) ── */
-.file-tl{margin:0 14px 8px;padding:10px 12px;border-radius:10px;
-  background:rgba(124,58,237,.07);border:1px solid rgba(124,58,237,.18);}
-.ftl-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
-.ftl-label{font-size:8px;color:var(--t3);font-family:'Orbitron',monospace;letter-spacing:.06em;}
-.ftl-val{font-size:14px;font-weight:900;color:var(--mint);font-family:'Orbitron',monospace;}
-.ftl-track{height:4px;background:rgba(255,255,255,.07);border-radius:2px;overflow:hidden;margin-bottom:4px;}
-.ftl-fill{height:100%;border-radius:2px;transition:width .5s;}
-.ftl-info{display:flex;justify-content:space-between;font-size:8px;color:var(--t3);font-family:'Orbitron',monospace;}
+/* 파일 TL */
+.file-tl{margin:0 14px 8px;padding:9px 12px;border-radius:9px;
+  background:rgba(124,58,237,.07);border:1px solid rgba(124,58,237,.16)}
+.ftl-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px}
+.ftl-label{font-size:8px;color:var(--t3);font-family:monospace;letter-spacing:.05em}
+.ftl-val{font-size:14px;font-weight:700;color:var(--mint);font-family:monospace}
+.ftl-bar{height:3px;background:rgba(255,255,255,.07);border-radius:2px;overflow:hidden;margin-bottom:4px}
+.ftl-fill{height:100%;border-radius:2px;transition:width .5s}
+.ftl-info{display:flex;justify-content:space-between;font-size:8px;color:var(--t3);font-family:monospace}
 
 /* 재충전 배너 */
-.rc-banner{display:none;margin:0 14px 8px;padding:9px 12px;border-radius:9px;
-  background:rgba(255,77,109,.08);border:1px solid rgba(255,77,109,.25);
-  align-items:center;gap:8px;}
-.rc-banner.show{display:flex;}
-.rc-txt{font-size:11px;color:var(--rose);flex:1;line-height:1.4;}
+.rc-bar{display:none;margin:0 14px 8px;padding:9px 12px;border-radius:9px;
+  background:rgba(255,77,109,.07);border:1px solid rgba(255,77,109,.2);
+  align-items:center;gap:8px}
+.rc-bar.show{display:flex}
+.rc-txt{font-size:11px;color:var(--rose);flex:1;line-height:1.4}
 .rc-btn{padding:6px 14px;border-radius:7px;border:none;
   background:linear-gradient(135deg,var(--purple),var(--purple2));
-  color:#fff;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;}
+  color:#fff;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap}
 
 /* 진행바 */
-.prog-area{padding:0 14px;flex-shrink:0;}
-.prog-track{height:3px;border-radius:2px;background:rgba(255,255,255,.07);cursor:pointer;}
-.prog-fill{height:100%;border-radius:2px;
-  background:linear-gradient(90deg,var(--purple),var(--mint2));width:0%;transition:width .2s linear;}
+.prog{padding:0 14px;flex-shrink:0}
+.prog-track{height:3px;background:rgba(255,255,255,.07);border-radius:2px;cursor:pointer}
+.prog-fill{height:100%;background:linear-gradient(90deg,var(--purple),var(--mint));
+  width:0%;border-radius:2px;transition:width .2s linear}
 .time-row{display:flex;justify-content:space-between;
-  font-size:9px;color:var(--t3);font-family:'Orbitron',monospace;margin-top:4px;}
+  font-size:9px;color:var(--t3);font-family:monospace;margin-top:4px}
 
 /* 컨트롤 */
 .controls{display:flex;align-items:center;justify-content:center;
-  gap:10px;padding:8px 14px;flex-shrink:0;}
+  gap:10px;padding:8px 14px;flex-shrink:0}
 .ctrl{width:34px;height:34px;border-radius:50%;border:1px solid var(--bd2);
   background:rgba(255,255,255,.03);color:var(--t2);font-size:12px;cursor:pointer;
-  display:flex;align-items:center;justify-content:center;transition:all .2s;}
-.ctrl:hover{color:var(--t1);border-color:rgba(124,58,237,.4);}
-.ctrl.play{width:50px;height:50px;font-size:19px;border:none;
+  display:flex;align-items:center;justify-content:center;transition:all .2s}
+.ctrl:hover{color:var(--t1);border-color:rgba(124,58,237,.4)}
+.ctrl.play{width:50px;height:50px;font-size:20px;border:none;
   background:linear-gradient(135deg,var(--purple),var(--purple2));
-  color:#fff;box-shadow:0 3px 16px var(--gp);}
-.ctrl.play:hover{transform:scale(1.06);}
-.ctrl.play.on{background:linear-gradient(135deg,var(--purple2),var(--mint));box-shadow:0 3px 16px var(--gm);}
+  color:#fff;box-shadow:0 3px 16px var(--gp)}
+.ctrl.play:hover{transform:scale(1.06)}
+.ctrl.play.on{background:linear-gradient(135deg,var(--purple2),var(--mint))}
 
 /* 상태 */
-.p-st{font-size:9px;text-align:center;padding:2px 14px 6px;color:var(--t3);min-height:15px;}
-.p-st.error{color:var(--rose);} .p-st.ok{color:var(--mint);} .p-st.warn{color:var(--gold);}
+.p-st{font-size:9px;text-align:center;padding:2px 14px 6px;color:var(--t3);min-height:16px}
+.p-st.err{color:var(--rose)}.p-st.ok{color:var(--mint)}.p-st.warn{color:var(--gold)}
 
 /* ── 플레이리스트 ── */
-.pl-wrap{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+.pl-wrap{flex:1;display:flex;flex-direction:column;overflow:hidden;border-top:1px solid var(--bd)}
 .pl-head{display:flex;align-items:center;padding:7px 14px;gap:8px;
-  border-bottom:1px solid var(--bd);flex-shrink:0;}
-.pl-ttl{font-size:9px;font-weight:700;color:var(--t3);font-family:'Orbitron',monospace;
-  letter-spacing:.06em;flex:1;}
-.pl-cnt{font-size:9px;color:var(--t3);font-family:'Orbitron',monospace;}
+  background:var(--bg2);border-bottom:1px solid var(--bd);flex-shrink:0}
+.pl-ttl{font-size:9px;font-weight:700;color:var(--t3);font-family:monospace;letter-spacing:.05em;flex:1}
+.pl-cnt{font-size:9px;color:var(--t3);font-family:monospace}
 .pl-add{padding:4px 10px;border-radius:6px;border:1px solid rgba(124,58,237,.25);
-  background:rgba(124,58,237,.07);color:var(--purple2);font-size:10px;font-weight:600;
-  cursor:pointer;white-space:nowrap;}
-.pl-add:hover{background:rgba(124,58,237,.14);}
+  background:rgba(124,58,237,.07);color:var(--purple2);font-size:10px;
+  cursor:pointer;white-space:nowrap}
+.pl-add:hover{background:rgba(124,58,237,.15)}
 
-/* 드롭존 */
-.pl-drop{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
-  gap:8px;cursor:pointer;padding:20px;position:relative;}
-.pl-drop::before{content:'';position:absolute;inset:8px;
-  border:1px dashed rgba(124,58,237,.18);border-radius:10px;pointer-events:none;transition:all .2s;}
-.pl-drop:hover::before,.pl-drop.over::before{border-color:rgba(124,58,237,.45);}
-.pl-drop-icon{font-size:26px;opacity:.35;}
-.pl-drop-txt{font-size:11px;color:var(--t3);text-align:center;line-height:1.7;}
+/* 빈 상태 */
+.pl-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:8px;cursor:pointer;padding:20px;position:relative}
+.pl-empty::before{content:'';position:absolute;inset:8px;
+  border:1px dashed rgba(124,58,237,.15);border-radius:10px;pointer-events:none}
+.pl-empty:hover::before{border-color:rgba(124,58,237,.4)}
+.pl-empty-ico{font-size:24px;opacity:.3}
+.pl-empty-txt{font-size:11px;color:var(--t3);text-align:center;line-height:1.7}
 
-/* 플레이리스트 */
-.pl-list{flex:1;overflow-y:auto;padding:2px 0;}
+/* 리스트 */
+.pl-list{flex:1;overflow-y:auto;padding:2px 0}
 .pl-item{display:flex;align-items:center;gap:8px;padding:7px 14px;
-  cursor:pointer;transition:background .15s;border-left:2px solid transparent;}
-.pl-item:hover{background:rgba(255,255,255,.025);}
-.pl-item.cur{background:rgba(124,58,237,.07);border-left-color:var(--purple2);}
-.pl-num{font-size:9px;color:var(--t3);font-family:'Orbitron',monospace;width:16px;text-align:center;flex-shrink:0;}
-.pl-item.cur .pl-num{color:var(--purple2);}
-.pl-ico{width:30px;height:30px;border-radius:6px;background:var(--bg3);
-  border:1px solid var(--bd);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;}
-.pl-inf{flex:1;min-width:0;}
-.pl-name{font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.pl-art{font-size:9px;color:var(--t3);margin-top:1px;}
-.pl-tl-info{flex-shrink:0;text-align:right;}
-.pl-tl-v{font-size:9px;font-weight:700;color:var(--mint);font-family:'Orbitron',monospace;}
-.pl-tl-e{font-size:9px;color:var(--rose);font-family:'Orbitron',monospace;}
-.pl-del{width:20px;height:20px;border-radius:4px;border:none;background:transparent;
-  color:var(--t3);font-size:9px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
-.pl-del:hover{color:var(--rose);background:rgba(255,77,109,.1);}
+  cursor:pointer;transition:background .15s;border-left:2px solid transparent}
+.pl-item:hover{background:rgba(255,255,255,.025)}
+.pl-item.cur{background:rgba(124,58,237,.07);border-left-color:var(--purple2)}
+.pl-num{font-size:9px;color:var(--t3);font-family:monospace;width:16px;text-align:center;flex-shrink:0}
+.pl-item.cur .pl-num{color:var(--purple2)}
+.pl-ico{width:28px;height:28px;border-radius:6px;background:var(--bg3);
+  border:1px solid var(--bd);display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
+.pl-inf{flex:1;min-width:0}
+.pl-name{font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pl-sub{font-size:9px;color:var(--t3);margin-top:1px}
+.pl-tl{flex-shrink:0;text-align:right}
+.pl-tl-v{font-size:9px;font-weight:700;color:var(--mint);font-family:monospace}
+.pl-tl-e{font-size:9px;color:var(--rose);font-family:monospace}
+.pl-del{width:18px;height:18px;border-radius:4px;border:none;
+  background:transparent;color:var(--t3);font-size:9px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.pl-del:hover{color:var(--rose);background:rgba(255,77,109,.1)}
 
 /* 드롭 오버레이 */
-.drop-ov{display:none;position:fixed;inset:0;background:rgba(124,58,237,.1);
-  border:2px dashed rgba(124,58,237,.5);z-index:999;
-  align-items:center;justify-content:center;flex-direction:column;gap:8px;backdrop-filter:blur(3px);}
-.drop-ov.show{display:flex;}
-.drop-ov-txt{font-size:14px;font-weight:700;color:var(--purple2);}
+.drop-ov{display:none;position:fixed;inset:0;z-index:999;
+  background:rgba(124,58,237,.1);border:2px dashed rgba(124,58,237,.5);
+  align-items:center;justify-content:center;flex-direction:column;gap:6px;
+  backdrop-filter:blur(3px)}
+.drop-ov.show{display:flex}
+.drop-ov-txt{font-size:13px;font-weight:700;color:var(--purple2)}
 
-::-webkit-scrollbar{width:3px;}
-::-webkit-scrollbar-track{background:transparent;}
-::-webkit-scrollbar-thumb{background:rgba(124,58,237,.2);border-radius:2px;}
+::-webkit-scrollbar{width:3px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(124,58,237,.2);border-radius:2px}
 </style>
 </head>
 <body>
 
+<!-- 드롭 오버레이 -->
 <div class="drop-ov" id="dropOv">
   <div style="font-size:28px">📂</div>
   <div class="drop-ov-txt">.tl 파일을 여기에 놓으세요</div>
@@ -210,70 +232,78 @@ body::before{content:'';position:fixed;width:500px;height:500px;
 <div class="titlebar">
   <div class="tb-logo">TL</div>
   <span class="tb-name">TIMELINK PLAYER</span>
-  <span class="tb-ver">v1.0.0</span>
+  <span class="tb-ver">v1.1.0</span>
 </div>
 
-<!-- 상단 바: 유저 + 내 TL -->
-<div class="top-bar">
-  <div class="tb-user" id="tbUser">로그인하면 내 TL 잔액이 표시됩니다</div>
-  <div class="tb-my-tl" id="myTLPill" style="display:none">
+<!-- 유저 바 -->
+<div class="user-bar" style="position:relative">
+  <div class="ub-info" id="ubInfo">로그인하면 내 TL 잔액이 표시됩니다</div>
+  <div class="ub-tl" id="ubTLPill" style="display:none">
     <span style="font-size:9px">⚡</span>
-    <span class="tb-my-tl-val" id="myTLVal">0</span>
+    <span class="ub-tl-val" id="ubTLVal">0</span>
   </div>
-  <button class="tb-login-btn" id="loginToggleBtn" onclick="toggleLoginPanel()">로그인</button>
-  <button class="tb-logout-btn" id="logoutBtn" style="display:none" onclick="doLogout()" title="로그아웃">↩</button>
+  <button class="ub-login-btn" id="ubLoginBtn" onclick="toggleLoginPanel()">로그인</button>
+  <button class="ub-logout" id="ubLogoutBtn" style="display:none" onclick="doLogout()">↩</button>
+
+  <!-- 로그인 패널 -->
+  <div class="login-panel" id="loginPanel">
+    <input class="lp-inp" type="email" id="lpEmail" placeholder="이메일"
+      onkeydown="if(event.key==='Enter')document.getElementById('lpPw').focus()">
+    <input class="lp-inp" type="password" id="lpPw" placeholder="비밀번호"
+      onkeydown="if(event.key==='Enter')doLogin()">
+    <button class="lp-btn" id="lpBtn" onclick="doLogin()">로그인</button>
+    <div class="lp-err" id="lpErr"></div>
+  </div>
 </div>
 
-<!-- 로그인 패널 -->
-<div class="login-panel" id="loginPanel">
-  <div class="lp-title">timelink.digital 계정으로 로그인</div>
-  <input class="lp-inp" type="email" id="lpEmail" placeholder="이메일"
-    onkeydown="if(event.key==='Enter')document.getElementById('lpPw').focus()">
-  <input class="lp-inp" type="password" id="lpPw" placeholder="비밀번호"
-    onkeydown="if(event.key==='Enter')doLogin()">
-  <button class="lp-btn" id="lpBtn" onclick="doLogin()">로그인</button>
-  <div class="lp-st" id="lpSt"></div>
-</div>
+<!-- 메인 -->
+<div class="main"
+  ondragover="ev.preventDefault();document.getElementById('dropOv').classList.add('show')"
+  ondragleave="if(!event.relatedTarget)document.getElementById('dropOv').classList.remove('show')"
+  ondrop="onDrop(event)">
 
-<!-- 메인 영역 -->
-<div class="main">
+  <!-- 비디오 -->
+  <div class="video-area" id="videoArea">
+    <video id="videoEl" playsinline></video>
+    <button class="video-fullscreen-btn" onclick="tlAPI.toggleFullscreen()" title="전체화면">⛶</button>
+  </div>
 
   <!-- 현재 재생 -->
   <div class="now-playing">
-    <div class="video-wrap" id="videoWrap"><video id="videoEl" playsinline></video></div>
-    <div class="disc-row">
+    <div class="cover-row">
       <div class="disc" id="discEl"><div class="disc-c">TL</div></div>
       <div class="np-info">
         <div class="np-title" id="npTitle">재생 중인 파일 없음</div>
         <div class="np-artist" id="npArtist">.tl 파일을 추가하세요</div>
+        <span class="np-type" id="npType" style="display:none"></span>
       </div>
-      <div class="eq-mini" id="eqMini">
-        <div class="eq-m"></div><div class="eq-m"></div>
-        <div class="eq-m"></div><div class="eq-m"></div>
+      <div class="eq" id="eqEl">
+        <div class="eq-b"></div><div class="eq-b"></div>
+        <div class="eq-b"></div><div class="eq-b"></div>
       </div>
     </div>
 
-    <!-- ★ 파일 TL 잔액 ★ -->
+    <!-- 파일 TL 잔액 -->
     <div class="file-tl">
       <div class="ftl-top">
-        <span class="ftl-label">⚡ 파일 TL 잔액 (충전된 재생 시간)</span>
+        <span class="ftl-label">⚡ 파일 TL 잔액</span>
         <span class="ftl-val" id="ftlVal">— TL</span>
       </div>
-      <div class="ftl-track"><div class="ftl-fill" id="ftlFill" style="width:0%"></div></div>
+      <div class="ftl-bar"><div class="ftl-fill" id="ftlFill" style="width:0%"></div></div>
       <div class="ftl-info">
         <span id="ftlRemain">남은 재생: —</span>
         <span id="ftlRate">— TL/s</span>
       </div>
     </div>
 
-    <!-- TL 소진 재충전 배너 -->
-    <div class="rc-banner" id="rcBanner">
+    <!-- 재충전 -->
+    <div class="rc-bar" id="rcBar">
       <span class="rc-txt">⚡ 파일 TL이 소진됐습니다<br>재충전 후 계속 재생할 수 있습니다</span>
       <button class="rc-btn" onclick="doRecharge()">💳 재충전</button>
     </div>
 
     <!-- 진행바 -->
-    <div class="prog-area">
+    <div class="prog">
       <div class="prog-track" id="progTrack" onclick="seekTo(event)">
         <div class="prog-fill" id="progFill"></div>
       </div>
@@ -301,14 +331,12 @@ body::before{content:'';position:fixed;width:500px;height:500px;
       <span class="pl-cnt" id="plCnt">0곡</span>
       <button class="pl-add" onclick="addFiles()">+ 추가</button>
     </div>
-    <div class="pl-drop" id="plDrop" onclick="addFiles()"
-      ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)">
-      <div class="pl-drop-icon">📂</div>
-      <div class="pl-drop-txt">.tl 파일을 드롭하거나<br>+ 추가 버튼을 클릭하세요</div>
+    <div class="pl-empty" id="plEmpty" onclick="addFiles()">
+      <div class="pl-empty-ico">📂</div>
+      <div class="pl-empty-txt">.tl 파일을 드롭하거나<br>+ 추가 버튼을 클릭하세요<br><small style="opacity:.5">.tl3 오디오 · .tl4 영상</small></div>
     </div>
     <div class="pl-list" id="plList" style="display:none"></div>
   </div>
-
 </div>
 
 <audio id="audioEl" style="display:none"></audio>
@@ -320,81 +348,65 @@ const API = 'https://api.timelink.digital';
 let _token=null, _user=null;
 let _playlist=[], _curIdx=-1;
 let _playing=false, _isVideo=false;
-let _filePath=null, _header=null, _shareId=null;
+let _fp=null, _hdr=null, _shareId=null;
 let _fileTL=0, _fileTLMax=0, _tlPerSec=1;
-const _audio=document.getElementById('audioEl');
-const _video=document.getElementById('videoEl');
-let _curAudioEl = _audio; // 현재 재생 중인 audio 엘리먼트
-let _tick=null, _pocBuf=0;
-const _blobCache    = new Map(); // filePath → blobUrl
-const _audioCache   = new Map(); // filePath → HTMLAudioElement (미리 로드됨)
+let _tick=null, _poc=0;
+
+// 미디어 엘리먼트
+const _audio = document.getElementById('audioEl');
+const _video = document.getElementById('videoEl');
+let _curEl   = _audio;
+
+// 캐시
+const _blobCache = new Map(); // fp → blobUrl
+const _preCache  = new Map(); // fp → Audio (미리 로드)
 
 // ── 초기화 ──
 (async function(){
-  // 저장된 로그인 복원
   _token = await tlAPI.storeGet('tl_token');
   const uj = await tlAPI.storeGet('tl_user');
-  if(_token && uj){
-    _user = JSON.parse(uj);
-    updateUserBar();
-    syncMyTL();
-  }
+  if(_token && uj){ _user=JSON.parse(uj); updateUserBar(); syncMyTL(); }
 
-  // 더블클릭으로 파일 열기
   tlAPI.onTLFileOpen(fp => addToPlaylist([fp], true));
 
   // 전체 드래그
   document.addEventListener('dragover', e=>{e.preventDefault(); document.getElementById('dropOv').classList.add('show');});
-  document.addEventListener('dragleave', e=>{if(!e.relatedTarget) document.getElementById('dropOv').classList.remove('show');});
-  document.addEventListener('drop', e=>{
-    e.preventDefault();
-    document.getElementById('dropOv').classList.remove('show');
-    const fps = Array.from(e.dataTransfer.files)
-      .filter(f=>/\.(tl|tl3|tl4|tlg|tld|tle)$/i.test(f.name))
-      .map(f=>f.path);
-    if(fps.length) addToPlaylist(fps, true);
-  });
+  document.addEventListener('dragleave', e=>{ if(!e.relatedTarget) document.getElementById('dropOv').classList.remove('show');});
 })();
 
-// ── 유저 바 업데이트 ──
+// ── 유저 바 ──
 function updateUserBar(){
-  const loggedIn = !!_user;
-  document.getElementById('tbUser').textContent = loggedIn ? _user.email||'로그인됨' : '로그인하면 내 TL 잔액이 표시됩니다';
-  document.getElementById('myTLPill').style.display = loggedIn ? 'flex' : 'none';
-  document.getElementById('loginToggleBtn').style.display = loggedIn ? 'none' : '';
-  document.getElementById('logoutBtn').style.display = loggedIn ? '' : 'none';
+  const on = !!_user;
+  document.getElementById('ubInfo').textContent = on ? (_user.email||'로그인됨') : '로그인하면 내 TL 잔액이 표시됩니다';
+  document.getElementById('ubTLPill').style.display = on ? 'flex' : 'none';
+  document.getElementById('ubLoginBtn').style.display = on ? 'none' : '';
+  document.getElementById('ubLogoutBtn').style.display = on ? '' : 'none';
 }
-
 async function syncMyTL(){
   if(!_token) return;
   const r = await tlAPI.getMyTL({token:_token});
-  if(r.ok) document.getElementById('myTLVal').textContent = Number(r.tl).toLocaleString()+' TL';
+  if(r.ok) document.getElementById('ubTLVal').textContent = Number(r.tl).toLocaleString()+' TL';
 }
-
-// ── 로그인 패널 ──
 function toggleLoginPanel(){
   document.getElementById('loginPanel').classList.toggle('show');
 }
 async function doLogin(){
   const email = document.getElementById('lpEmail').value.trim();
   const pw    = document.getElementById('lpPw').value;
-  if(!email||!pw){setLPSt('이메일과 비밀번호를 입력하세요','error');return;}
+  if(!email||!pw){ document.getElementById('lpErr').textContent='이메일과 비밀번호를 입력하세요'; return; }
   const btn = document.getElementById('lpBtn');
   btn.disabled=true; btn.textContent='연결 중...';
+  document.getElementById('lpErr').textContent='';
   try{
-    const d = await tlAPI.login({email, password:pw});
+    const d = await tlAPI.login({email,password:pw});
     if(!d.ok) throw new Error(d.error||'로그인 실패');
     _token=d.token; _user=d.user;
     await tlAPI.storeSet('tl_token',_token);
     await tlAPI.storeSet('tl_user',JSON.stringify(_user));
-    updateUserBar();
-    syncMyTL();
+    updateUserBar(); syncMyTL();
     document.getElementById('loginPanel').classList.remove('show');
-    setLPSt('');
-  }catch(e){
-    setLPSt('❌ '+e.message,'error');
-    btn.disabled=false; btn.textContent='로그인';
-  }
+  }catch(e){ document.getElementById('lpErr').textContent='❌ '+e.message; }
+  btn.disabled=false; btn.textContent='로그인';
 }
 function doLogout(){
   _token=null; _user=null;
@@ -405,72 +417,58 @@ function doLogout(){
 // ── 파일 추가 ──
 async function addFiles(){
   const fps = await tlAPI.openFileDialog();
-  if(fps && fps.length) addToPlaylist(fps, _curIdx===-1);
+  if(fps&&fps.length) addToPlaylist(fps, _curIdx===-1);
 }
 
 async function addToPlaylist(fps, autoPlay=false){
   if(!fps||!fps.length) return;
-  let firstNew = null;
+  let firstNew=null;
   for(const fp of fps){
-    if(_playlist.find(p=>p.filePath===fp)) continue;
-
-    // ★ 1단계: 헤더만 빠르게 파싱 (복호화 없음 → 즉시)
-    setSt('⏳ 파일 정보 읽는 중...');
+    if(_playlist.find(p=>p.fp===fp)) continue;
+    setSt('⏳ 파일 읽는 중...');
     const p = await tlAPI.parseTLHeader(fp);
-    if(p.error){ setSt('❌ '+p.error,'error'); continue; }
-
-    const hdr = p.header || {};
-    const tl_balance = Number(hdr.tl_balance ?? p.tl_balance ?? 0);
-    const tl_per_sec = Number(hdr.tl_per_sec ?? p.tl_per_sec ?? 1);
-    const tl_max     = Number(hdr.tl_max ?? hdr.file_tl ?? p.tl_max ?? tl_balance);
-    const ft  = (hdr.fileType||'').toLowerCase();
+    if(p.error){ setSt('❌ '+p.error,'err'); continue; }
+    const hdr = p.header||{};
     const ext = fp.split('.').pop()?.toLowerCase()||'';
-    const isV = ft.startsWith('video')||ext==='tl4'||hdr.category_type==='video';
-
+    const isV = (hdr.fileType||'').toLowerCase().startsWith('video')||ext==='tl4';
     const track = {
-      filePath: fp, header: hdr,
-      tl_balance, tl_per_sec, tl_max,
-      decrypted: null,   // 아직 복호화 안 함
-      decrypting: false, // 복호화 진행 중 여부
-      isVideo: isV,
-      shareId: hdr.shareId,
+      fp, hdr, isVideo:isV,
+      tl_balance: Number(hdr.tl_balance||0),
+      tl_per_sec: Number(hdr.tl_per_sec||1),
+      tl_max:     Number(hdr.tl_max||hdr.file_tl||hdr.tl_balance||0),
+      shareId:    hdr.shareId||null,
       icon: isV?'🎬':ext==='tlg'?'🖼️':ext==='tld'?'📄':'🎵',
+      decrypted: null, decrypting: false,
     };
     _playlist.push(track);
-    if(!firstNew) firstNew = _playlist.length-1;
+    if(firstNew===null) firstNew=_playlist.length-1;
 
-    // ★ 2단계: 백그라운드에서 복호화 + Blob URL 미리 생성
+    // 백그라운드 복호화 + Blob 미리 생성
     const idx = _playlist.length-1;
-    _playlist[idx].decrypting = true;
-    tlAPI.decryptFile(fp).then(res => {
-      if(!_playlist[idx]) return;
-      _playlist[idx].decrypted  = res.decrypted;
-      _playlist[idx].decrypting = false;
-      // Blob URL + Audio 엘리먼트 미리 로드 (재생 시 즉시 사용)
-      if(res.decrypted && !_blobCache.has(fp)){
+    track.decrypting=true;
+    tlAPI.decryptFile(fp).then(res=>{
+      const t=_playlist[idx]; if(!t) return;
+      t.decrypted=res.decrypted; t.decrypting=false;
+      if(res.decrypted&&!_blobCache.has(fp)){
         try{
-          const hdr  = _playlist[idx]?.header;
-          const isV  = _playlist[idx]?.isVideo;
-          const mime = hdr?.fileType || (isV ? 'video/mp4' : 'audio/mpeg');
-          const bytes = Uint8Array.from(atob(res.decrypted), c=>c.charCodeAt(0));
-          const url   = URL.createObjectURL(new Blob([bytes],{type:mime}));
-          _blobCache.set(fp, url);
-          // ★ Audio 엘리먼트 미리 로드 (오디오만 - 영상은 용량 문제로 제외)
-          if(!isV && !_audioCache.has(fp)){
-            const preAudio = new Audio();
-            preAudio.preload = 'auto';
-            preAudio.src = url;
-            _audioCache.set(fp, preAudio);
+          const mime=t.hdr?.fileType||(t.isVideo?'video/mp4':'audio/mpeg');
+          const bytes=Uint8Array.from(atob(res.decrypted),c=>c.charCodeAt(0));
+          const url=URL.createObjectURL(new Blob([bytes],{type:mime}));
+          _blobCache.set(fp,url);
+          // 오디오만 Audio 엘리먼트 미리 로드
+          if(!t.isVideo&&!_preCache.has(fp)){
+            const a=new Audio(); a.preload='auto'; a.src=url;
+            _preCache.set(fp,a);
           }
-        }catch(e){ console.warn('[preload]', e); }
+        }catch(e){}
       }
-      renderPlaylist();
+      renderPL();
     });
   }
-  renderPlaylist();
-  if(firstNew !== null){
-    setSt('✅ '+_playlist.length+'곡 추가됨','ok');
-    if(autoPlay || _curIdx===-1) playTrack(firstNew);
+  renderPL();
+  if(firstNew!==null){
+    setSt('✅ '+_playlist.length+'곡','ok');
+    if(autoPlay||_curIdx===-1) playTrack(firstNew);
   }
 }
 
@@ -478,157 +476,225 @@ async function addToPlaylist(fps, autoPlay=false){
 async function playTrack(idx){
   if(idx<0||idx>=_playlist.length) return;
   stopPB(false);
-  _curIdx = idx;
-  const t = _playlist[idx];
+  _curIdx=idx;
+  const t=_playlist[idx];
+  _fp=t.fp; _hdr=t.hdr; _shareId=t.shareId;
+  _fileTL=t.tl_balance; _fileTLMax=t.tl_max||t.tl_balance||3600;
+  _tlPerSec=t.tl_per_sec; _isVideo=t.isVideo;
 
-  _filePath  = t.filePath;
-  _header    = t.header;
-  _shareId   = t.shareId;
-  _fileTL    = t.tl_balance;
-  _fileTLMax = t.tl_max || t.tl_balance || 3600;
-  _tlPerSec  = t.tl_per_sec;
-  _isVideo   = t.isVideo;
+  // UI
+  document.getElementById('npTitle').textContent  = _hdr?.title||'제목 없음';
+  document.getElementById('npArtist').textContent = _hdr?.artist||_hdr?.creatorName||'—';
+  const typeEl=document.getElementById('npType');
+  typeEl.textContent=_isVideo?'🎬 TL4 영상':'🎵 TL3 오디오';
+  typeEl.style.display='inline-block';
 
-  document.getElementById('npTitle').textContent  = _header?.title||'제목 없음';
-  document.getElementById('npArtist').textContent = _header?.artist||_header?.creatorName||'—';
-  document.getElementById('videoWrap').style.display = _isVideo?'block':'none';
-  updateFTLDisplay();
-  renderPlaylist();
+  // 비디오/오디오 영역 전환
+  const va=document.getElementById('videoArea');
+  const disc=document.getElementById('discEl');
+  if(_isVideo){ va.classList.add('show'); disc.style.display='none'; }
+  else { va.classList.remove('show'); disc.style.display='flex'; }
+
+  updateFTL(); renderPL();
 
   if(_fileTL<=0){
-    document.getElementById('rcBanner').classList.add('show');
-    setSt('⚡ 이 파일의 TL이 소진됐습니다. 재충전 후 재생하세요','warn');
+    document.getElementById('rcBar').classList.add('show');
+    setSt('⚡ 파일 TL 소진 — 재충전 후 재생하세요','warn');
     return;
   }
-  document.getElementById('rcBanner').classList.remove('show');
-  await doPlay(t);
+  document.getElementById('rcBar').classList.remove('show');
+  await startPlay(t);
 }
 
-async function doPlay(t){
+async function startPlay(t){
   document.getElementById('playBtn').textContent='⏳';
 
-  // ★ Blob URL 캐시 먼저 확인 (가장 빠름)
-  let blobUrl = _blobCache.get(t.filePath) || null;
+  // Blob URL 확인 (캐시 우선)
+  let url=_blobCache.get(t.fp)||null;
 
-  if(!blobUrl){
-    // 복호화 완료 대기 (백그라운드 진행 중)
+  if(!url){
+    // 복호화 대기
     if(t.decrypting){
-      setSt('⏳ 준비 중... (잠깐만요)','warn');
-      for(let i=0; i<300; i++){
+      setSt('⏳ 복호화 준비 중...','warn');
+      for(let i=0;i<300;i++){
         await new Promise(r=>setTimeout(r,100));
-        if(_blobCache.has(t.filePath)){ blobUrl=_blobCache.get(t.filePath); break; }
-        if(!t.decrypting){ break; }
+        if(_blobCache.has(t.fp)){url=_blobCache.get(t.fp);break;}
+        if(!t.decrypting) break;
       }
     }
-    // 그래도 없으면 직접 복호화
-    if(!blobUrl){
+    // 직접 복호화
+    if(!url){
       setSt('⏳ 복호화 중...','warn');
-      const res = await tlAPI.decryptFile(t.filePath);
+      const res=await tlAPI.decryptFile(t.fp);
       if(!res.decrypted){
-        setSt('❌ 복호화 실패 — 파일을 다시 다운로드하세요','error');
-        document.getElementById('playBtn').textContent='▶';
-        return;
+        setSt('❌ 복호화 실패 — 파일을 다시 다운로드하세요','err');
+        document.getElementById('playBtn').textContent='▶'; return;
       }
-      t.decrypted = res.decrypted;
-      const mime2 = t.header?.fileType||(_isVideo?'video/mp4':'audio/mpeg');
-      const bytes2 = Uint8Array.from(atob(res.decrypted), c=>c.charCodeAt(0));
-      blobUrl = URL.createObjectURL(new Blob([bytes2],{type:mime2}));
-      _blobCache.set(t.filePath, blobUrl);
+      t.decrypted=res.decrypted;
+      const mime=t.hdr?.fileType||(_isVideo?'video/mp4':'audio/mpeg');
+      const bytes=Uint8Array.from(atob(res.decrypted),c=>c.charCodeAt(0));
+      url=URL.createObjectURL(new Blob([bytes],{type:mime}));
+      _blobCache.set(t.fp,url);
     }
   }
 
   setSt('');
   try{
-    const mime  = _header?.fileType||(_isVideo?'video/mp4':'audio/mpeg');
-    const url   = blobUrl;
-    let el;
     if(_isVideo){
-      el = _video;
-      el.src = url;
+      _curEl=_video;
     } else {
-      // ★ 미리 로드된 Audio 엘리먼트 있으면 그대로 사용 (즉시 재생)
-      const preloaded = _audioCache.get(t.filePath);
-      if(preloaded && preloaded.readyState >= 2){ // HAVE_CURRENT_DATA 이상
-        // 기존 _audio는 정지, preloaded 사용
-        el = preloaded;
-        // 이벤트 핸들러 교체
-      } else {
-        el = _audio;
-        el.src = url;
-      }
+      // 미리 로드된 Audio 있으면 사용
+      const pre=_preCache.get(t.fp);
+      _curEl = (pre&&pre.readyState>=2) ? pre : _audio;
+      if(_curEl===_audio) _audio.src=url;
     }
-    el.ontimeupdate = onTU;
-    el.onended = ()=>nextTrack();
-    el.onerror = ()=>{setSt('❌ 재생 오류 ['+mime+']','error'); document.getElementById('playBtn').textContent='▶';};
-    // 현재 재생 엘리먼트 추적
-    _curAudioEl = el;
-    await el.play();
+    if(_isVideo) _video.src=url;
+
+    _curEl.ontimeupdate=onTU;
+    _curEl.onended=()=>nextTrack();
+    _curEl.onerror=()=>{setSt('❌ 재생 오류','err');document.getElementById('playBtn').textContent='▶';};
+    await _curEl.play();
+
     _playing=true;
     document.getElementById('playBtn').textContent='⏸';
     document.getElementById('playBtn').classList.add('on');
-    document.getElementById('discEl').classList.add('playing');
-    document.getElementById('eqMini').classList.add('on');
+    if(!_isVideo){ document.getElementById('discEl').classList.add('spin'); document.getElementById('eqEl').classList.add('on'); }
     setSt('▶ 재생 중 · '+_tlPerSec+' TL/s','ok');
-    startTick();
-    renderPlaylist();
+    startTick(); renderPL();
   }catch(e){
-    setSt('❌ '+e.message,'error');
+    setSt('❌ '+e.message,'err');
     document.getElementById('playBtn').textContent='▶';
   }
 }
 
 async function togglePlay(){
-  if(!_filePath){setSt('파일을 추가하세요','warn');return;}
+  if(!_fp){setSt('파일을 추가하세요','warn');return;}
   if(_playing){stopPB();return;}
-  if(_fileTL<=0){
-    document.getElementById('rcBanner').classList.add('show');
-    setSt('⚡ TL 소진 — 재충전 후 재생하세요','error');
-    return;
-  }
+  if(_fileTL<=0){document.getElementById('rcBar').classList.add('show');setSt('⚡ TL 소진 — 재충전하세요','err');return;}
   const t=_playlist[_curIdx];
-  if(t) await doPlay(t);
+  if(t) await startPlay(t);
 }
 
-function stopPB(clearStatus=true){
+function stopPB(clearSt=true){
   _playing=false;
-  // audio/video 완전 정지
   _audio.pause(); _audio.removeAttribute('src'); _audio.load();
   _video.pause(); _video.removeAttribute('src'); _video.load();
-  if(_curAudioEl && _curAudioEl !== _audio){
-    _curAudioEl.pause();
-    _curAudioEl.currentTime = 0;
-  }
-  _curAudioEl = _audio;
+  if(_curEl&&_curEl!==_audio&&_curEl!==_video){ _curEl.pause(); _curEl.currentTime=0; }
+  _curEl=_audio;
   document.getElementById('playBtn').textContent='▶';
   document.getElementById('playBtn').classList.remove('on');
-  document.getElementById('discEl').classList.remove('playing');
-  document.getElementById('eqMini').classList.remove('on');
+  document.getElementById('discEl').classList.remove('spin');
+  document.getElementById('eqEl').classList.remove('on');
   document.getElementById('progFill').style.width='0%';
   document.getElementById('timeEl').textContent='0:00';
-  if(clearStatus) setSt('');
-  flushPOC(); stopTick(); renderPlaylist();
+  if(clearSt) setSt('');
+  flushPoc(); stopTick(); renderPL();
 }
 
 function prevTrack(){ if(_curIdx>0) playTrack(_curIdx-1); }
 function nextTrack(){ if(_curIdx<_playlist.length-1) playTrack(_curIdx+1); else stopPB(); }
 
 function removeTrack(idx){
-  const fp = _playlist[idx]?.filePath;
-  if(idx===_curIdx){stopPB(); _curIdx=-1; _filePath=null;}
+  const fp=_playlist[idx]?.fp;
+  if(idx===_curIdx){stopPB();_curIdx=-1;_fp=null;}
   else if(idx<_curIdx) _curIdx--;
   _playlist.splice(idx,1);
-  // Blob URL + Audio 캐시 해제
-  if(fp){
-    if(_blobCache.has(fp)){ URL.revokeObjectURL(_blobCache.get(fp)); _blobCache.delete(fp); }
-    if(_audioCache.has(fp)){ const a=_audioCache.get(fp); a.pause(); a.src=''; _audioCache.delete(fp); }
-  }
-  renderPlaylist();
-  if(_playlist.length===0){ resetDisplay(); }
+  if(fp){ if(_blobCache.has(fp)){URL.revokeObjectURL(_blobCache.get(fp));_blobCache.delete(fp);} if(_preCache.has(fp)){const a=_preCache.get(fp);a.pause();a.src='';_preCache.delete(fp);} }
+  renderPL();
+  if(_playlist.length===0) resetUI();
 }
 
-function resetDisplay(){
+// ── TL 차감 ──
+function startTick(){
+  stopTick();
+  _tick=setInterval(async()=>{
+    if(!_playing) return;
+    _fileTL=Math.max(0,_fileTL-_tlPerSec);
+    if(_fp) await tlAPI.updateTLBalance({filePath:_fp,newBalance:_fileTL});
+    if(_playlist[_curIdx]) _playlist[_curIdx].tl_balance=_fileTL;
+    updateFTL(); _poc+=_tlPerSec;
+    if(_fileTL<=0){stopPB(false);document.getElementById('rcBar').classList.add('show');setSt('⚡ TL 소진 — 재충전 후 계속 재생하세요','err');}
+    if(_poc>=10) flushPoc();
+  },1000);
+}
+function stopTick(){if(_tick){clearInterval(_tick);_tick=null;}}
+async function flushPoc(){
+  if(_poc<=0||!_shareId||!_token) return;
+  const s=_poc;_poc=0;
+  try{await tlAPI.recordPOC({shareId:_shareId,token:_token,seconds:s,deduct_rate:_tlPerSec});}catch(e){}
+}
+
+// ── 재충전 ──
+async function doRecharge(){
+  const amount=_fileTLMax||3600;
+  setSt('⏳ 재충전 중...');
+  try{
+    const res=await tlAPI.rechargeTL({filePath:_fp,shareId:_shareId||null,token:_token||null,amount});
+    if(res.error) throw new Error(res.error);
+    _fileTL=res.new_balance; _fileTLMax=Math.max(_fileTLMax||amount,_fileTL);
+    if(_playlist[_curIdx]){_playlist[_curIdx].tl_balance=_fileTL;_playlist[_curIdx].tl_max=_fileTLMax;}
+    updateFTL(); document.getElementById('rcBar').classList.remove('show');
+    setSt(res.local_only?'✅ '+amount.toLocaleString()+' TL 충전 완료':'✅ '+amount.toLocaleString()+' TL 재충전 완료!','ok');
+    renderPL(); syncMyTL();
+    const t=_playlist[_curIdx]; if(t&&!_playing) await startPlay(t);
+  }catch(e){setSt('❌ 재충전 실패: '+e.message,'err');}
+}
+
+// ── TL 표시 ──
+function updateFTL(){
+  const pct=_fileTLMax>0?Math.max(0,Math.min(100,(_fileTL/_fileTLMax)*100)):0;
+  document.getElementById('ftlVal').textContent=Number(_fileTL).toLocaleString()+' TL';
+  document.getElementById('ftlFill').style.width=pct+'%';
+  document.getElementById('ftlRate').textContent=_tlPerSec+' TL/s';
+  const rem=_tlPerSec>0?Math.floor(_fileTL/_tlPerSec):0;
+  document.getElementById('ftlRemain').textContent='남은 재생: '+fmt(rem);
+  const f=document.getElementById('ftlFill');
+  if(pct<10)f.style.background='var(--rose)';
+  else if(pct<30)f.style.background='linear-gradient(90deg,var(--rose),var(--gold))';
+  else f.style.background='linear-gradient(90deg,var(--rose),var(--gold),var(--mint))';
+}
+
+// ── 진행바 ──
+function onTU(){
+  const dur=_curEl.duration||_hdr?.duration||1;
+  const cur=_curEl.currentTime||0;
+  document.getElementById('progFill').style.width=(cur/dur*100).toFixed(1)+'%';
+  document.getElementById('timeEl').textContent=fmt(Math.floor(cur));
+  document.getElementById('durEl').textContent=fmt(Math.floor(dur));
+}
+function seekTo(e){
+  const bar=document.getElementById('progTrack');
+  _curEl.currentTime=(e.offsetX/bar.offsetWidth)*(_curEl.duration||0);
+}
+function seekRel(s){_curEl.currentTime=Math.max(0,(_curEl.currentTime||0)+s);}
+
+// ── 플레이리스트 렌더링 ──
+function renderPL(){
+  const empty=document.getElementById('plEmpty'),list=document.getElementById('plList');
+  document.getElementById('plCnt').textContent=_playlist.length+'곡';
+  if(_playlist.length===0){empty.style.display='flex';list.style.display='none';return;}
+  empty.style.display='none';list.style.display='block';
+  list.innerHTML=_playlist.map((t,i)=>{
+    const cur=i===_curIdx,tl=Number(t.tl_balance||0);
+    return `<div class="pl-item${cur?' cur':''}" onclick="playTrack(${i})">
+      <div class="pl-num">${cur&&_playing?'▶':(i+1)}</div>
+      <div class="pl-ico">${t.icon}</div>
+      <div class="pl-inf">
+        <div class="pl-name">${esc(t.hdr?.title||'제목 없음')}</div>
+        <div class="pl-sub">${esc(t.hdr?.artist||t.hdr?.creatorName||'—')}${t.decrypting?' · ⏳':''}</div>
+      </div>
+      <div class="pl-tl">${tl>0
+        ?`<div class="pl-tl-v">${Number(tl).toLocaleString()} TL</div>`
+        :`<div class="pl-tl-e">TL 없음</div>`}</div>
+      <button class="pl-del" onclick="event.stopPropagation();removeTrack(${i})">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function resetUI(){
   document.getElementById('npTitle').textContent='재생 중인 파일 없음';
   document.getElementById('npArtist').textContent='.tl 파일을 추가하세요';
+  document.getElementById('npType').style.display='none';
   document.getElementById('ftlVal').textContent='— TL';
   document.getElementById('ftlFill').style.width='0%';
   document.getElementById('ftlRemain').textContent='남은 재생: —';
@@ -636,127 +702,13 @@ function resetDisplay(){
   document.getElementById('progFill').style.width='0%';
   document.getElementById('timeEl').textContent='0:00';
   document.getElementById('durEl').textContent='0:00';
+  document.getElementById('videoArea').classList.remove('show');
+  document.getElementById('discEl').style.display='flex';
 }
 
-// ── TL Tick (1초마다 차감) ──
-function startTick(){
-  stopTick();
-  _tick = setInterval(async()=>{
-    if(!_playing) return;
-    _fileTL = Math.max(0, _fileTL - _tlPerSec);
-    if(_filePath) await tlAPI.updateTLBalance({filePath:_filePath, newBalance:_fileTL});
-    if(_playlist[_curIdx]) _playlist[_curIdx].tl_balance = _fileTL;
-    updateFTLDisplay();
-    _pocBuf += _tlPerSec;
-    if(_fileTL<=0){
-      stopPB(false);
-      document.getElementById('rcBanner').classList.add('show');
-      setSt('⚡ TL 소진 — 재충전 후 계속 재생하세요','error');
-    }
-    if(_pocBuf>=10) flushPOC();
-  },1000);
-}
-function stopTick(){ if(_tick){clearInterval(_tick);_tick=null;} }
-async function flushPOC(){
-  if(_pocBuf<=0||!_shareId||!_token) return;
-  const s=_pocBuf; _pocBuf=0;
-  try{ await tlAPI.recordPOC({shareId:_shareId,token:_token,seconds:s,deduct_rate:_tlPerSec}); }catch(e){}
-}
-
-// ── 재충전 ──
-async function doRecharge(){
-  const amount = _fileTLMax || 3600;
-  setSt('⏳ 재충전 중...');
-  try{
-    const res = await tlAPI.rechargeTL({
-      filePath:_filePath, shareId:_shareId||null,
-      token:_token||null, amount
-    });
-    if(res.error) throw new Error(res.error);
-    _fileTL = res.new_balance;
-    _fileTLMax = Math.max(_fileTLMax||amount, _fileTL);
-    if(_playlist[_curIdx]){
-      _playlist[_curIdx].tl_balance = _fileTL;
-      _playlist[_curIdx].tl_max     = _fileTLMax;
-    }
-    updateFTLDisplay();
-    document.getElementById('rcBanner').classList.remove('show');
-    if(res.local_only){
-      setSt('✅ '+amount.toLocaleString()+' TL 충전 완료 (로컬)','ok');
-    } else {
-      setSt('✅ '+amount.toLocaleString()+' TL 재충전 완료!','ok');
-    }
-    renderPlaylist();
-    syncMyTL();
-    // 재생 재개
-    const t=_playlist[_curIdx];
-    if(t&&!_playing) await doPlay(t);
-  }catch(e){ setSt('❌ 재충전 실패: '+e.message,'error'); }
-}
-
-// ── 파일 TL 표시 ──
-function updateFTLDisplay(){
-  const pct = _fileTLMax>0 ? Math.max(0,Math.min(100,(_fileTL/_fileTLMax)*100)) : 0;
-  document.getElementById('ftlVal').textContent    = Number(_fileTL).toLocaleString()+' TL';
-  document.getElementById('ftlFill').style.width   = pct+'%';
-  document.getElementById('ftlRate').textContent   = _tlPerSec+' TL/s';
-  const rem = _tlPerSec>0 ? Math.floor(_fileTL/_tlPerSec) : 0;
-  document.getElementById('ftlRemain').textContent = '남은 재생: '+fmtT(rem);
-  const fill = document.getElementById('ftlFill');
-  if(pct<10)      fill.style.background='var(--rose)';
-  else if(pct<30) fill.style.background='linear-gradient(90deg,var(--rose),var(--gold))';
-  else            fill.style.background='linear-gradient(90deg,var(--rose),var(--gold),var(--mint))';
-}
-
-// ── 플레이리스트 렌더링 ──
-function renderPlaylist(){
-  const drop=document.getElementById('plDrop');
-  const list=document.getElementById('plList');
-  document.getElementById('plCnt').textContent=_playlist.length+'곡';
-  if(_playlist.length===0){ drop.style.display='flex'; list.style.display='none'; return; }
-  drop.style.display='none'; list.style.display='block';
-  list.innerHTML=_playlist.map((t,i)=>{
-    const cur=i===_curIdx;
-    const tl=Number(t.tl_balance||0);
-    return `<div class="pl-item${cur?' cur':''}" onclick="playTrack(${i})">
-      <div class="pl-num">${cur&&_playing?'▶':(i+1)}</div>
-      <div class="pl-ico">${t.icon}</div>
-      <div class="pl-inf">
-        <div class="pl-name">${esc(t.header?.title||'제목 없음')}</div>
-        <div class="pl-art">${esc(t.header?.artist||t.header?.creatorName||'—')}</div>
-      </div>
-      <div class="pl-tl-info">
-        ${tl>0
-          ? `<div class="pl-tl-v">${Number(tl).toLocaleString()} TL</div>`
-          : `<div class="pl-tl-e">TL 없음</div>`}
-        ${t.decrypting ? `<div style="font-size:8px;color:var(--t3)">준비중...</div>` : ''}
-      </div>
-      <button class="pl-del" onclick="event.stopPropagation();removeTrack(${i})">✕</button>
-    </div>`;
-  }).join('');
-}
-
-// ── 진행바 ──
-function onTU(){
-  const el=_isVideo?_video:_curAudioEl;
-  const dur=el.duration||_header?.duration||1;
-  const cur=el.currentTime||0;
-  document.getElementById('progFill').style.width=(cur/dur*100).toFixed(1)+'%';
-  document.getElementById('timeEl').textContent=fmtT(Math.floor(cur));
-  document.getElementById('durEl').textContent=fmtT(Math.floor(dur));
-}
-function seekTo(e){
-  const el=_isVideo?_video:_curAudioEl;
-  el.currentTime=(e.offsetX/document.getElementById('progTrack').offsetWidth)*(el.duration||0);
-}
-function seekRel(s){ const el=_isVideo?_video:_curAudioEl; el.currentTime=Math.max(0,(el.currentTime||0)+s); }
-
-// ── 드롭 이벤트 ──
-function onDragOver(e){ e.preventDefault(); document.getElementById('plDrop').classList.add('over'); }
-function onDragLeave(e){ document.getElementById('plDrop').classList.remove('over'); }
+// ── 드롭 ──
 function onDrop(e){
   e.preventDefault();
-  document.getElementById('plDrop').classList.remove('over');
   document.getElementById('dropOv').classList.remove('show');
   const fps=Array.from(e.dataTransfer.files)
     .filter(f=>/\.(tl|tl3|tl4|tlg|tld|tle)$/i.test(f.name)).map(f=>f.path);
@@ -764,10 +716,9 @@ function onDrop(e){
 }
 
 // ── 유틸 ──
-function fmtT(s){ return Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0'); }
-function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-function setSt(msg,type){ const el=document.getElementById('pSt'); if(!el)return; el.textContent=msg; el.className='p-st'+(type?' '+type:''); }
-function setLPSt(msg,type){ const el=document.getElementById('lpSt'); if(!el)return; el.textContent=msg; el.className='lp-st'+(type?' '+type:''); }
+function fmt(s){return Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function setSt(msg,type){const el=document.getElementById('pSt');if(!el)return;el.textContent=msg;el.className='p-st'+(type?' '+type:'');}
 </script>
 </body>
 </html>
