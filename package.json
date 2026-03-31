@@ -1,41 +1,74 @@
 {
   "name": "timelink-player",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "TimeLink .tl 파일 플레이어",
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
     "build:win": "electron-builder --win",
-    "build:mac": "electron-builder --mac"
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux"
   },
   "build": {
     "appId": "digital.timelink.player",
     "productName": "TimeLink Player",
     "fileAssociations": [
       {
-        "ext": "tl",
+        "ext": "tl3",
+        "name": "TimeLink Music",
+        "description": "TL 음악 파일",
+        "mimeType": "application/x-timelink-music"
+      },
+      {
+        "ext": "tl4",
+        "name": "TimeLink Video",
+        "description": "TL 영상 파일",
+        "mimeType": "application/x-timelink-video"
+      },
+      {
+        "ext": "tlg",
+        "name": "TimeLink Image",
+        "description": "TL 이미지 파일",
+        "mimeType": "application/x-timelink-image"
+      },
+      {
+        "ext": "tld",
+        "name": "TimeLink Document",
+        "description": "TL 문서 파일",
+        "mimeType": "application/x-timelink-doc"
+      },
+      {
+        "ext": "tle",
         "name": "TimeLink File",
-        "description": "TL 암호화 파일",
+        "description": "TL 파일",
         "mimeType": "application/x-timelink"
       }
     ],
     "win": {
       "target": "nsis",
-      "icon": "assets/icon.ico"
+      "icon": "assets/icon.ico",
+      "artifactName": "TimeLink-Player-Setup.exe"
     },
     "mac": {
       "target": "dmg",
       "icon": "assets/icon.icns"
     },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "icon": "assets/icon.png"
+    },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "installerHeaderImage": "assets/installer-header.bmp"
+      "allowToChangeInstallationDirectory": true
     }
   },
   "dependencies": {},
   "devDependencies": {
     "electron": "^28.0.0",
     "electron-builder": "^24.0.0"
-  }
+  },
+  "author": "씨엠피 주식회사"
 }
