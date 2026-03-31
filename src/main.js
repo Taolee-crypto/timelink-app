@@ -50,11 +50,93 @@ app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(
 // IPC 핸들러
 // ══════════════════════════════════════
 
-// ── .tl 파일 파싱 캐시 ──
-const _parseCache = new Map(); // filePath → {result, mtime}
+// ── 캐시 ──
+const _parseCache   = new Map(); // filePath → {result, mtime}
+const _decryptCache = new Map(); // filePath → base64 (복호화 완료)
+const _decryptQueue = new Map(); // filePath → Promise (진행 중)
 
-// ── .tl 파일 파싱 ──
-// 헤더에서 tl_balance, xorKey 읽고 로컬 복호화
+// ── 1단계: 헤더만 빠르게 파싱 (복호화 없음) ──
+ipcMain.handle('parse-tl-header', async (event, fp) => {
+  try {
+    const stat  = fs.statSync(fp);
+    const mtime = stat.mtimeMs;
+    const cached = _parseCache.get(fp);
+    if (cached && cached.mtime === mtime) {
+      // tl_balance 최신값 갱신
+      const freshBuf = fs.readFileSync(fp);
+      const d = new Uint8Array(freshBuf);
+      const hl = d[6]|(d[7]<<8)|(d[8]<<16)|(d[9]<<24);
+      const hdr = JSON.parse(Buffer.from(d.slice(10,10+hl)).toString('utf8'));
+      cached.result.tl_balance = Number(hdr.tl_balance ?? 0);
+      cached.result.header.tl_balance = cached.result.tl_balance;
+      return cached.result;
+    }
+    const buf  = fs.readFileSync(fp);
+    const data = new Uint8Array(buf);
+    if (data[0]!==0x54||data[1]!==0x4C||data[2]!==0x4E||data[3]!==0x4B)
+      return { error: '유효하지 않은 .tl 파일' };
+    const hdrLen = data[6]|(data[7]<<8)|(data[8]<<16)|(data[9]<<24);
+    if (hdrLen<=0||hdrLen>4*1024*1024) return { error: '헤더 크기 오류' };
+    const header = JSON.parse(Buffer.from(data.slice(10,10+hdrLen)).toString('utf8'));
+    const payload = data.slice(10+hdrLen);
+    const tl_balance = Number(header.tl_balance ?? 0);
+    const tl_per_sec = Number(header.tl_per_sec ?? 1.0);
+    const tl_max     = Number(header.tl_max ?? header.file_tl ?? tl_balance);
+    const result = {
+      ok: true, header, tl_balance, tl_per_sec, tl_max,
+      fileSize: data.length, payloadSize: payload.length,
+      decrypted: null,        // 헤더 파싱 단계에선 복호화 안 함
+      needsDecrypt: !!(header.xorKey || header.key || header.encKey),
+    };
+    _parseCache.set(fp, { mtime, result });
+    return result;
+  } catch(e) { return { error: '헤더 파싱 오류: '+e.message }; }
+});
+
+// ── 2단계: 복호화 (백그라운드 / 재생 직전) ──
+function decryptFile(fp) {
+  // 이미 완료된 캐시
+  if (_decryptCache.has(fp)) return Promise.resolve(_decryptCache.get(fp));
+  // 진행 중인 Promise 재사용
+  if (_decryptQueue.has(fp)) return _decryptQueue.get(fp);
+
+  const promise = new Promise((resolve) => {
+    try {
+      const buf  = fs.readFileSync(fp);
+      const data = new Uint8Array(buf);
+      const hdrLen = data[6]|(data[7]<<8)|(data[8]<<16)|(data[9]<<24);
+      const header = JSON.parse(Buffer.from(data.slice(10,10+hdrLen)).toString('utf8'));
+      const payload = data.slice(10+hdrLen);
+      const xorSeed = header.xorKey ?? header.key ?? header.encKey ?? null;
+      if (!xorSeed) { resolve(null); return; }
+      const seed = String(xorSeed);
+      const key256 = new Uint8Array(256);
+      let h = 0x811c9dc5;
+      for (let i=0; i<seed.length; i++) { h ^= seed.charCodeAt(i); h = Math.imul(h,0x01000193)>>>0; }
+      for (let i=0; i<256; i++) {
+        h ^= Math.imul(i,0x9e3779b9)>>>0;
+        h = ((h<<13)|(h>>>19))>>>0;
+        h = Math.imul(h,0x01000193)>>>0;
+        key256[i] = h & 0xff;
+      }
+      const dec = Buffer.alloc(payload.length);
+      for (let i=0; i<payload.length; i++) dec[i] = payload[i] ^ key256[i%256];
+      const b64 = dec.toString('base64');
+      _decryptCache.set(fp, b64);
+      _decryptQueue.delete(fp);
+      resolve(b64);
+    } catch(e) { _decryptQueue.delete(fp); resolve(null); }
+  });
+  _decryptQueue.set(fp, promise);
+  return promise;
+}
+
+ipcMain.handle('decrypt-file', async (event, fp) => {
+  const b64 = await decryptFile(fp);
+  return { ok: !!b64, decrypted: b64 };
+});
+
+// ── 구버전 호환 parse-tl-file (헤더 + 복호화 통합) ──
 ipcMain.handle('parse-tl-file', async (event, fp) => {
   try {
     // 캐시 확인 (파일 수정 시간 기준)

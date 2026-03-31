@@ -410,16 +410,16 @@ async function addToPlaylist(fps, autoPlay=false){
   let firstNew = null;
   for(const fp of fps){
     if(_playlist.find(p=>p.filePath===fp)) continue;
-    setSt('⏳ 파싱 중...');
-    const p = await tlAPI.parseTLFile(fp);
+
+    // ★ 1단계: 헤더만 빠르게 파싱 (복호화 없음 → 즉시)
+    setSt('⏳ 파일 정보 읽는 중...');
+    const p = await tlAPI.parseTLHeader(fp);
     if(p.error){ setSt('❌ '+p.error,'error'); continue; }
 
-    // 헤더에서 직접 읽기
     const hdr = p.header || {};
     const tl_balance = Number(hdr.tl_balance ?? p.tl_balance ?? 0);
     const tl_per_sec = Number(hdr.tl_per_sec ?? p.tl_per_sec ?? 1);
     const tl_max     = Number(hdr.tl_max ?? hdr.file_tl ?? p.tl_max ?? tl_balance);
-
     const ft  = (hdr.fileType||'').toLowerCase();
     const ext = fp.split('.').pop()?.toLowerCase()||'';
     const isV = ft.startsWith('video')||ext==='tl4'||hdr.category_type==='video';
@@ -427,17 +427,28 @@ async function addToPlaylist(fps, autoPlay=false){
     const track = {
       filePath: fp, header: hdr,
       tl_balance, tl_per_sec, tl_max,
-      decrypted: p.decrypted,
+      decrypted: null,   // 아직 복호화 안 함
+      decrypting: false, // 복호화 진행 중 여부
       isVideo: isV,
       shareId: hdr.shareId,
       icon: isV?'🎬':ext==='tlg'?'🖼️':ext==='tld'?'📄':'🎵',
     };
     _playlist.push(track);
     if(!firstNew) firstNew = _playlist.length-1;
+
+    // ★ 2단계: 백그라운드에서 복호화 (재생 전에 완료되도록)
+    const idx = _playlist.length-1;
+    _playlist[idx].decrypting = true;
+    tlAPI.decryptFile(fp).then(res => {
+      if(_playlist[idx]) {
+        _playlist[idx].decrypted  = res.decrypted;
+        _playlist[idx].decrypting = false;
+      }
+    });
   }
   renderPlaylist();
   if(firstNew !== null){
-    setSt('✅ '+_playlist.length+'곡 로드됨','ok');
+    setSt('✅ '+_playlist.length+'곡 추가됨','ok');
     if(autoPlay || _curIdx===-1) playTrack(firstNew);
   }
 }
@@ -473,15 +484,34 @@ async function playTrack(idx){
 }
 
 async function doPlay(t){
-  setSt('⏳ 복호화 중...');
   document.getElementById('playBtn').textContent='⏳';
 
-  const b64 = t.decrypted;
+  // ★ 백그라운드 복호화 완료 대기 (보통 이미 완료됨)
+  let b64 = t.decrypted;
   if(!b64){
-    setSt('❌ 복호화 키 없음 — 파일을 다시 다운로드하세요','error');
+    if(t.decrypting){
+      setSt('⏳ 복호화 준비 중... (잠깐만요)','warn');
+      // 최대 30초 대기
+      for(let i=0; i<300; i++){
+        await new Promise(r=>setTimeout(r,100));
+        if(t.decrypted){ b64=t.decrypted; break; }
+        if(!t.decrypting){ break; }
+      }
+    }
+    if(!b64){
+      // 직접 복호화 시도
+      setSt('⏳ 복호화 중...','warn');
+      const res = await tlAPI.decryptFile(t.filePath);
+      b64 = res.decrypted;
+      if(t) t.decrypted = b64;
+    }
+  }
+  if(!b64){
+    setSt('❌ 복호화 실패 — 파일을 다시 다운로드하세요','error');
     document.getElementById('playBtn').textContent='▶';
     return;
   }
+  setSt('⏳ 재생 준비 중...');
   try{
     const bytes = Uint8Array.from(atob(b64), c=>c.charCodeAt(0));
     const mime  = _header?.fileType||(_isVideo?'video/mp4':'audio/mpeg');
@@ -641,6 +671,7 @@ function renderPlaylist(){
         ${tl>0
           ? `<div class="pl-tl-v">${Number(tl).toLocaleString()} TL</div>`
           : `<div class="pl-tl-e">TL 없음</div>`}
+        ${t.decrypting ? `<div style="font-size:8px;color:var(--t3)">준비중...</div>` : ''}
       </div>
       <button class="pl-del" onclick="event.stopPropagation();removeTrack(${i})">✕</button>
     </div>`;
