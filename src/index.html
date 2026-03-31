@@ -324,8 +324,10 @@ let _filePath=null, _header=null, _shareId=null;
 let _fileTL=0, _fileTLMax=0, _tlPerSec=1;
 const _audio=document.getElementById('audioEl');
 const _video=document.getElementById('videoEl');
+let _curAudioEl = _audio; // 현재 재생 중인 audio 엘리먼트
 let _tick=null, _pocBuf=0;
-const _blobCache = new Map(); // filePath → blobUrl
+const _blobCache    = new Map(); // filePath → blobUrl
+const _audioCache   = new Map(); // filePath → HTMLAudioElement (미리 로드됨)
 
 // ── 초기화 ──
 (async function(){
@@ -444,16 +446,23 @@ async function addToPlaylist(fps, autoPlay=false){
       if(!_playlist[idx]) return;
       _playlist[idx].decrypted  = res.decrypted;
       _playlist[idx].decrypting = false;
-      // Blob URL 미리 생성 (재생 시 즉시 사용)
+      // Blob URL + Audio 엘리먼트 미리 로드 (재생 시 즉시 사용)
       if(res.decrypted && !_blobCache.has(fp)){
         try{
-          const hdr  = _playlist[idx].header;
-          const isV  = _playlist[idx].isVideo;
+          const hdr  = _playlist[idx]?.header;
+          const isV  = _playlist[idx]?.isVideo;
           const mime = hdr?.fileType || (isV ? 'video/mp4' : 'audio/mpeg');
           const bytes = Uint8Array.from(atob(res.decrypted), c=>c.charCodeAt(0));
           const url   = URL.createObjectURL(new Blob([bytes],{type:mime}));
           _blobCache.set(fp, url);
-        }catch(e){ console.warn('[blob preload]', e); }
+          // ★ Audio 엘리먼트 미리 로드 (오디오만 - 영상은 용량 문제로 제외)
+          if(!isV && !_audioCache.has(fp)){
+            const preAudio = new Audio();
+            preAudio.preload = 'auto';
+            preAudio.src = url;
+            _audioCache.set(fp, preAudio);
+          }
+        }catch(e){ console.warn('[preload]', e); }
       }
       renderPlaylist();
     });
@@ -532,9 +541,27 @@ async function doPlay(t){
   try{
     const mime  = _header?.fileType||(_isVideo?'video/mp4':'audio/mpeg');
     const url   = blobUrl;
-    const el    = _isVideo?_video:_audio;
-    el.src=url; el.ontimeupdate=onTU; el.onended=()=>nextTrack();
-    el.onerror=()=>{setSt('❌ 재생 오류 ['+mime+']','error'); document.getElementById('playBtn').textContent='▶';};
+    let el;
+    if(_isVideo){
+      el = _video;
+      el.src = url;
+    } else {
+      // ★ 미리 로드된 Audio 엘리먼트 있으면 그대로 사용 (즉시 재생)
+      const preloaded = _audioCache.get(t.filePath);
+      if(preloaded && preloaded.readyState >= 2){ // HAVE_CURRENT_DATA 이상
+        // 기존 _audio는 정지, preloaded 사용
+        el = preloaded;
+        // 이벤트 핸들러 교체
+      } else {
+        el = _audio;
+        el.src = url;
+      }
+    }
+    el.ontimeupdate = onTU;
+    el.onended = ()=>nextTrack();
+    el.onerror = ()=>{setSt('❌ 재생 오류 ['+mime+']','error'); document.getElementById('playBtn').textContent='▶';};
+    // 현재 재생 엘리먼트 추적
+    _curAudioEl = el;
     await el.play();
     _playing=true;
     document.getElementById('playBtn').textContent='⏸';
@@ -564,9 +591,14 @@ async function togglePlay(){
 
 function stopPB(clearStatus=true){
   _playing=false;
-  // audio/video 완전 정지 및 src 해제
+  // audio/video 완전 정지
   _audio.pause(); _audio.removeAttribute('src'); _audio.load();
   _video.pause(); _video.removeAttribute('src'); _video.load();
+  if(_curAudioEl && _curAudioEl !== _audio){
+    _curAudioEl.pause();
+    _curAudioEl.currentTime = 0;
+  }
+  _curAudioEl = _audio;
   document.getElementById('playBtn').textContent='▶';
   document.getElementById('playBtn').classList.remove('on');
   document.getElementById('discEl').classList.remove('playing');
@@ -585,10 +617,10 @@ function removeTrack(idx){
   if(idx===_curIdx){stopPB(); _curIdx=-1; _filePath=null;}
   else if(idx<_curIdx) _curIdx--;
   _playlist.splice(idx,1);
-  // Blob URL 해제
-  if(fp && _blobCache.has(fp)){
-    URL.revokeObjectURL(_blobCache.get(fp));
-    _blobCache.delete(fp);
+  // Blob URL + Audio 캐시 해제
+  if(fp){
+    if(_blobCache.has(fp)){ URL.revokeObjectURL(_blobCache.get(fp)); _blobCache.delete(fp); }
+    if(_audioCache.has(fp)){ const a=_audioCache.get(fp); a.pause(); a.src=''; _audioCache.delete(fp); }
   }
   renderPlaylist();
   if(_playlist.length===0){ resetDisplay(); }
@@ -706,7 +738,7 @@ function renderPlaylist(){
 
 // ── 진행바 ──
 function onTU(){
-  const el=_isVideo?_video:_audio;
+  const el=_isVideo?_video:_curAudioEl;
   const dur=el.duration||_header?.duration||1;
   const cur=el.currentTime||0;
   document.getElementById('progFill').style.width=(cur/dur*100).toFixed(1)+'%';
@@ -714,10 +746,10 @@ function onTU(){
   document.getElementById('durEl').textContent=fmtT(Math.floor(dur));
 }
 function seekTo(e){
-  const el=_isVideo?_video:_audio;
+  const el=_isVideo?_video:_curAudioEl;
   el.currentTime=(e.offsetX/document.getElementById('progTrack').offsetWidth)*(el.duration||0);
 }
-function seekRel(s){ const el=_isVideo?_video:_audio; el.currentTime=Math.max(0,(el.currentTime||0)+s); }
+function seekRel(s){ const el=_isVideo?_video:_curAudioEl; el.currentTime=Math.max(0,(el.currentTime||0)+s); }
 
 // ── 드롭 이벤트 ──
 function onDragOver(e){ e.preventDefault(); document.getElementById('plDrop').classList.add('over'); }
