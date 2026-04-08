@@ -296,10 +296,12 @@ body{background:var(--bg);color:var(--t1);font-family:'DM Sans',sans-serif;
       </div>
     </div>
 
-    <!-- 재충전 -->
-    <div class="rc-bar" id="rcBar">
-      <span class="rc-txt">⚡ 파일 TL이 소진됐습니다<br>재충전 후 계속 재생할 수 있습니다</span>
-      <button class="rc-btn" onclick="doRecharge()">💳 재충전</button>
+    <!-- TL 충전 (항상 표시) -->
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0">
+      <div id="rcBar" class="rc-bar" style="display:none;flex:1;margin-right:8px">
+        <span class="rc-txt">⚡ 파일 TL이 소진됐습니다</span>
+      </div>
+      <button class="rc-btn" onclick="doRecharge()" style="flex-shrink:0">⚡ 충전</button>
     </div>
 
     <!-- 진행바 -->
@@ -498,11 +500,11 @@ async function playTrack(idx){
   updateFTL(); renderPL();
 
   if(_fileTL<=0){
-    document.getElementById('rcBar').classList.add('show');
+    document.getElementById('rcBar').style.display='flex';
     setSt('⚡ 파일 TL 소진 — 재충전 후 재생하세요','warn');
     return;
   }
-  document.getElementById('rcBar').classList.remove('show');
+  document.getElementById('rcBar').style.display='none';
   await startPlay(t);
 }
 
@@ -570,7 +572,7 @@ async function startPlay(t){
 async function togglePlay(){
   if(!_fp){setSt('파일을 추가하세요','warn');return;}
   if(_playing){stopPB();return;}
-  if(_fileTL<=0){document.getElementById('rcBar').classList.add('show');setSt('⚡ TL 소진 — 재충전하세요','err');return;}
+  if(_fileTL<=0){document.getElementById('rcBar').style.display='flex';setSt('⚡ TL 소진 — 재충전하세요','err');return;}
   const t=_playlist[_curIdx];
   if(t) await startPlay(t);
 }
@@ -613,7 +615,7 @@ function startTick(){
     if(_fp) await tlAPI.updateTLBalance({filePath:_fp,newBalance:_fileTL});
     if(_playlist[_curIdx]) _playlist[_curIdx].tl_balance=_fileTL;
     updateFTL(); _poc+=_tlPerSec;
-    if(_fileTL<=0){stopPB(false);document.getElementById('rcBar').classList.add('show');setSt('⚡ TL 소진 — 재충전 후 계속 재생하세요','err');}
+    if(_fileTL<=0){stopPB(false);document.getElementById('rcBar').style.display='flex';setSt('⚡ TL 소진 — 재충전 후 계속 재생하세요','err');}
     if(_poc>=10) flushPoc();
   },1000);
 }
@@ -633,7 +635,7 @@ async function doRecharge(){
     if(res.error) throw new Error(res.error);
     _fileTL=res.new_balance; _fileTLMax=Math.max(_fileTLMax||amount,_fileTL);
     if(_playlist[_curIdx]){_playlist[_curIdx].tl_balance=_fileTL;_playlist[_curIdx].tl_max=_fileTLMax;}
-    updateFTL(); document.getElementById('rcBar').classList.remove('show');
+    updateFTL(); document.getElementById('rcBar').style.display='none';
     setSt(res.local_only?'✅ '+amount.toLocaleString()+' TL 충전 완료':'✅ '+amount.toLocaleString()+' TL 재충전 완료!','ok');
     renderPL(); syncMyTL();
     const t=_playlist[_curIdx]; if(t&&!_playing) await startPlay(t);
@@ -722,3 +724,7 @@ function setSt(msg,type){const el=document.getElementById('pSt');if(!el)return;e
 </script>
 </body>
 </html>
+
+
+
+
