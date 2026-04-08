@@ -1,6 +1,6 @@
 {
   "name": "timelink-player",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "TimeLink .tl 파일 플레이어",
   "main": "src/main.js",
   "scripts": {
@@ -72,3 +72,4 @@
   },
   "author": "씨엠피 주식회사"
 }
+
