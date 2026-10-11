@@ -67,8 +67,8 @@ ipcMain.handle('parse-tl-header', async (ev, fp) => {
       // tl_balance 최신값만 다시 읽기
       const b = fs.readFileSync(fp);
       const d = new Uint8Array(b);
-      const hl = d[6]|(d[7]<<8)|(d[8]<<16)|(d[9]<<24);
-      const h = JSON.parse(Buffer.from(d.slice(10,10+hl)).toString('utf8'));
+      const hl = ((d[5]<<24)|(d[6]<<16)|(d[7]<<8)|d[8])>>>0;
+      const h = JSON.parse(Buffer.from(d.slice(9,9+hl)).toString('utf8'));
       cached.result.tl_balance = Number(h.tl_balance||0);
       cached.result.header.tl_balance = cached.result.tl_balance;
       return cached.result;
@@ -77,9 +77,9 @@ ipcMain.handle('parse-tl-header', async (ev, fp) => {
     const data = new Uint8Array(buf);
     if (data[0]!==0x54||data[1]!==0x4C||data[2]!==0x4E||data[3]!==0x4B)
       return { error: '유효하지 않은 .tl 파일' };
-    const hdrLen = data[6]|(data[7]<<8)|(data[8]<<16)|(data[9]<<24);
+    const hdrLen = ((data[5]<<24)|(data[6]<<16)|(data[7]<<8)|data[8])>>>0;
     if (hdrLen<=0||hdrLen>4*1024*1024) return { error: '헤더 크기 오류' };
-    const header = JSON.parse(Buffer.from(data.slice(10,10+hdrLen)).toString('utf8'));
+    const header = JSON.parse(Buffer.from(data.slice(9,9+hdrLen)).toString('utf8'));
     const result = {
       ok: true, header,
       tl_balance: Number(header.tl_balance||0),
@@ -97,22 +97,80 @@ ipcMain.handle('parse-tl-header', async (ev, fp) => {
 const WORKER_CODE = `
 const { workerData, parentPort } = require('worker_threads');
 const fs = require('fs');
+const crypto = require('crypto');
+
+const sha256 = (...parts) => {
+  const h = crypto.createHash('sha256');
+  for (const p of parts) {
+    if (Buffer.isBuffer(p)) h.update(p);
+    else if (p instanceof Uint8Array) h.update(Buffer.from(p));
+    else h.update(Buffer.from(String(p), 'utf8'));
+  }
+  return h.digest();
+};
+
+const unhex = (s) => Buffer.from(s, 'hex');
+
+const ivFor = (n) => {
+  const iv = Buffer.alloc(12);
+  iv.writeBigUInt64BE(BigInt(n), 4);
+  return iv;
+};
+
 try {
   const buf = fs.readFileSync(workerData.fp);
   const data = new Uint8Array(buf);
-  const hl = data[6]|(data[7]<<8)|(data[8]<<16)|(data[9]<<24);
-  const hdr = JSON.parse(Buffer.from(data.slice(10,10+hl)).toString('utf8'));
-  const payload = data.slice(10+hl);
-  const seed = String(hdr.xorKey||hdr.key||hdr.encKey||'');
-  if(!seed){ parentPort.postMessage({ok:false,error:'no key'}); process.exit(0); }
-  let h=0x811c9dc5;
-  const k=new Uint8Array(256);
-  for(let i=0;i<seed.length;i++){h^=seed.charCodeAt(i);h=(Math.imul(h,0x01000193))>>>0;}
-  for(let i=0;i<256;i++){h^=(Math.imul(i,0x9e3779b9))>>>0;h=((h<<13)|(h>>>19))>>>0;h=(Math.imul(h,0x01000193))>>>0;k[i]=h&0xff;}
-  const dec=Buffer.alloc(payload.length);
-  for(let i=0;i<payload.length;i++) dec[i]=payload[i]^k[i%256];
-  parentPort.postMessage({ok:true,b64:dec.toString('base64')});
-} catch(e){ parentPort.postMessage({ok:false,error:e.message}); }
+  const hl = ((data[5]<<24)|(data[6]<<16)|(data[7]<<8)|data[8])>>>0;
+  const hdr = JSON.parse(Buffer.from(data.slice(9,9+hl)).toString('utf8'));
+
+  if (!hdr.lic) { parentPort.postMessage({ok:false,error:'header.lic 없음'}); process.exit(0); }
+
+  const fid     = unhex(hdr.fid);
+  const salt    = unhex(hdr.salt);
+  const hashMp3 = unhex(hdr.hash_mp3);
+  const lic     = unhex(hdr.lic);
+  const tokens  = hdr.mp3_tokens || [];
+  const mp3Info = hdr.mp3 || {};
+  const N       = Number(mp3Info.N || 0);
+  const firstOffset = Number(mp3Info.first_offset || 0);
+  const segLens = hdr.mp3_seg_lens || null;
+
+  if (!segLens) { parentPort.postMessage({ok:false,error:'mp3_seg_lens 없음'}); process.exit(0); }
+
+  let off = 9 + hl;   // first_offset 대신 실제 payload 시작 사용
+  const parts = [];
+
+  for (let n = 1; n <= N; n++) {
+    const ctLen = Number(segLens[n-1]);
+    const ct = data.slice(off, off + ctLen);
+    off += ctLen;
+
+    let Tprev;
+    if (n === 1) {
+      Tprev = sha256(fid, hashMp3, salt);
+    } else {
+      const tp = tokens[n-1];
+      if (!tp) { parentPort.postMessage({ok:false,error:'토큰 없음 n='+n}); process.exit(0); }
+      Tprev = unhex(tp);
+    }
+
+    const K_n = sha256(Tprev, lic, Buffer.from('K' + n));
+
+    const iv = ivFor(n);
+    const tag = ct.slice(ct.length - 16);
+    const ctOnly = ct.slice(0, ct.length - 16);
+
+    const decipher = crypto.createDecipheriv('aes-256-gcm', K_n, iv);
+    decipher.setAuthTag(tag);
+    const plain = Buffer.concat([decipher.update(ctOnly), decipher.final()]);
+    parts.push(plain);
+  }
+
+  const mp3 = Buffer.concat(parts);
+  parentPort.postMessage({ok:true, b64: mp3.toString('base64')});
+} catch(e) {
+  parentPort.postMessage({ok:false, error: e.message});
+}
 `;
 
 const WORKER_PATH = path.join(app.getPath('userData'), 'tl_worker.js');
@@ -123,14 +181,17 @@ function decryptFile(fp) {
   const p = new Promise(resolve => {
     try {
       fs.writeFileSync(WORKER_PATH, WORKER_CODE);
+      console.log('[decryptFile] Worker 시작:', fp);
       const w = new Worker(WORKER_PATH, { workerData: { fp } });
       w.once('message', msg => {
+        console.log('[decryptFile] Worker 응답:', JSON.stringify(msg).slice(0, 200));
         if (msg.ok) { _decryptCache.set(fp, msg.b64); resolve(msg.b64); }
-        else resolve(null);
+        else { console.error('[decryptFile] Worker 실패:', msg.error); resolve(null); }
         _decryptQueue.delete(fp);
       });
-      w.once('error', () => { resolve(null); _decryptQueue.delete(fp); });
-    } catch(e) { resolve(null); _decryptQueue.delete(fp); }
+      w.once('error', (err) => { console.error('[decryptFile] Worker 에러:', err); resolve(null); _decryptQueue.delete(fp); });
+      w.once('exit', (code) => { console.log('[decryptFile] Worker 종료 코드:', code); });
+    } catch(e) { console.error('[decryptFile] 예외:', e); resolve(null); _decryptQueue.delete(fp); }
   });
   _decryptQueue.set(fp, p);
   return p;
@@ -146,13 +207,13 @@ ipcMain.handle('update-tl-balance', async (ev, { filePath, newBalance }) => {
   try {
     const buf = fs.readFileSync(filePath);
     const d = new Uint8Array(buf);
-    const hl = d[6]|(d[7]<<8)|(d[8]<<16)|(d[9]<<24);
-    const hdr = JSON.parse(Buffer.from(d.slice(10,10+hl)).toString('utf8'));
+    const hl = ((d[5]<<24)|(d[6]<<16)|(d[7]<<8)|d[8])>>>0;
+    const hdr = JSON.parse(Buffer.from(d.slice(9,9+hl)).toString('utf8'));
     hdr.tl_balance = Math.max(0, Number(newBalance));
     const newHdr = Buffer.from(JSON.stringify(hdr), 'utf8');
-    const lb = Buffer.alloc(4); lb.writeUInt32LE(newHdr.length, 0);
-    const magic = Buffer.from([0x54,0x4C,0x4E,0x4B,0x01,0x00]);
-    fs.writeFileSync(filePath, Buffer.concat([magic, lb, newHdr, Buffer.from(d.slice(10+hl))]));
+    const lb = Buffer.alloc(4); lb.writeUInt32BE(newHdr.length, 0);
+    const magic = Buffer.from([0x54,0x4C,0x4E,0x4B, 0x03]);
+    fs.writeFileSync(filePath, Buffer.concat([magic, lb, newHdr, Buffer.from(d.slice(9+hl))]));
     _hdrCache.delete(filePath); // 캐시 무효화
     return { ok: true, tl_balance: hdr.tl_balance };
   } catch(e) { return { error: e.message }; }
@@ -164,12 +225,12 @@ ipcMain.handle('recharge-tl', async (ev, { filePath, shareId, token, amount }) =
     try {
       const buf = fs.readFileSync(filePath);
       const d = new Uint8Array(buf);
-      const hl = d[6]|(d[7]<<8)|(d[8]<<16)|(d[9]<<24);
-      const hdr = JSON.parse(Buffer.from(d.slice(10,10+hl)).toString('utf8'));
+      const hl = ((d[5]<<24)|(d[6]<<16)|(d[7]<<8)|d[8])>>>0;
+      const hdr = JSON.parse(Buffer.from(d.slice(9,9+hl)).toString('utf8'));
       hdr.tl_balance = nb;
       const nh = Buffer.from(JSON.stringify(hdr),'utf8');
-      const lb = Buffer.alloc(4); lb.writeUInt32LE(nh.length,0);
-      fs.writeFileSync(filePath, Buffer.concat([Buffer.from([0x54,0x4C,0x4E,0x4B,0x01,0x00]),lb,nh,Buffer.from(d.slice(10+hl))]));
+      const lb = Buffer.alloc(4); lb.writeUInt32BE(nh.length,0);
+      fs.writeFileSync(filePath, Buffer.concat([Buffer.from([0x54,0x4C,0x4E,0x4B, 0x03]),lb,nh,Buffer.from(d.slice(9+hl))]));
       _hdrCache.delete(filePath);
     } catch(e) {}
   };

@@ -3,3 +3,9 @@ dist/
 out/
 .DS_Store
 *.log
+
+# 백업 파일 제외
+src/*.bak*
+src/*.broken
+*.bak*
+*.broken

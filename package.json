@@ -1,6 +1,6 @@
 {
   "name": "timelink-player",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "TimeLink .tl 파일 플레이어",
   "main": "src/main.js",
   "scripts": {
