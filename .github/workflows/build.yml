@@ -96,7 +96,9 @@ jobs:
             exit 0
           fi
           # A tag without an existing release must point to the exact verified source.
-          EXISTING_SHA="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq '.object.sha' 2>/dev/null || true)"
+          EXISTING_SHA="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq '.object.sha // empty' 2>/dev/null || true)"
+          # A missing tag may yield the literal 'null' from some gh API responses.
+          if [ "$EXISTING_SHA" = "null" ]; then EXISTING_SHA=""; fi
           if [ -n "$EXISTING_SHA" ] && [ "$EXISTING_SHA" != "$GITHUB_SHA" ]; then
             echo "::error::Tag points to a different commit; refusing to retarget."
             exit 1
