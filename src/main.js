@@ -6,7 +6,34 @@ const {app,BrowserWindow,ipcMain,dialog,nativeTheme,shell}=require('electron');
 const fs=require('node:fs'),path=require('node:path'),https=require('node:https');
 const {inspectTLFile}=require('./tlnk-header');
 nativeTheme.themeSource='dark';
-let mainWindow=null;
+let mainWindow=null,playbackWindow=null;
+function openInAppTrack(url){
+  const target=new URL(url);
+  if(target.origin!==WEBSITE||target.pathname!=='/track.html'||!target.searchParams.get('id'))throw Error('허용되지 않는 재생 주소입니다.');
+  if(playbackWindow&&!playbackWindow.isDestroyed()){
+    playbackWindow.show();
+    return playbackWindow.loadURL(target.toString());
+  }
+  playbackWindow=new BrowserWindow({
+    parent:mainWindow||undefined,
+    width:940,height:760,minWidth:520,minHeight:540,
+    title:'TimeLink Player · TL3 V5',
+    backgroundColor:'#080813',
+    webPreferences:{contextIsolation:true,nodeIntegration:false,sandbox:true,webSecurity:true}
+  });
+  playbackWindow.setMenu(null);
+  playbackWindow.webContents.setWindowOpenHandler(()=>({action:'deny'}));
+  playbackWindow.webContents.on('will-navigate',(event,navigationUrl)=>{
+    try{
+      const destination=new URL(navigationUrl);
+      if(destination.origin===WEBSITE&&['/track.html','/login.html','/signup.html','/shareplace.html','/wallet.html'].includes(destination.pathname))return;
+    }catch{}
+    event.preventDefault();
+  });
+  playbackWindow.on('closed',()=>{playbackWindow=null;});
+  return playbackWindow.loadURL(target.toString());
+}
+
 const SUPPORTED=/\.(?:tl|tl3|tl4|tlg|tld|tle)$/i;
 const API_HOST='api.timelink.digital';
 const WEBSITE='https://www.timelink.digital';
@@ -111,8 +138,8 @@ ipcMain.handle('open-online-track',async(_event,{sha256,token}={})=>{
   if(lookup.version!==5||!/^[a-zA-Z0-9_-]{1,128}$/.test(shareId))
     return {ok:false,error:'서버 자산 식별정보가 올바르지 않습니다.'};
   const url=WEBSITE+'/track.html?id='+encodeURIComponent(shareId);
-  try{await shell.openExternal(url);return {ok:true,opened:true};}
-  catch(e){return {ok:false,error:'온라인 플레이어를 열 수 없습니다: '+e.message};}
+  try{await openInAppTrack(url);return {ok:true,opened:true,in_app:true};}
+  catch(e){return {ok:false,error:'앱 내부 재생 창을 열 수 없습니다: '+e.message};}
 });
 ipcMain.handle('open-shareplace',async()=>{
   try{await shell.openExternal(WEBSITE+'/shareplace.html');return {ok:true};}
