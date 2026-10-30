@@ -14,7 +14,7 @@ test('online V5 track opens inside protected Electron playback window, never ext
  assert.doesNotMatch(main,/localStorage\.setItem/);
 });
 test('player no longer directs audio to external browser or manufactures TL',()=>{
- assert.match(ui,/앱 내부 V5 재생 창을 열었습니다/);
+ assert.match(ui,/플레이어 내부 V5 재생 창을 열었습니다/);
  assert.doesNotMatch(ui,/공식 TimeLink 재생 페이지를 열었습니다/);
  assert.match(main,/로컬 TL 잔액 수정은 허용되지 않습니다/);
  assert.match(main,/파일 내부 충전은 지원하지 않습니다/);
