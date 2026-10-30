@@ -23,6 +23,16 @@ async function openAuthorizedLocalTrack(options){
   window.webContents.once('did-finish-load',()=>{
     if(!window.isDestroyed())window.webContents.send('authorized-offline-audio',approved.mp3);
   });
+  // Expired rights must stop audio even if the renderer is still open.
+  const millisRemaining=approved.session.rights.expiresAt*1000-Date.now();
+  if(!Number.isSafeInteger(millisRemaining)||millisRemaining<=0){
+    window.destroy();
+    throw Error('OFFLINE_GRANT_EXPIRED');
+  }
+  const expiryTimer=setTimeout(()=>{
+    if(!window.isDestroyed())window.destroy();
+  },Math.min(millisRemaining,2147483647));
+  window.once('closed',()=>clearTimeout(expiryTimer));
   await window.loadFile(path.join(__dirname,'offline-audio.html'));
   return {window,session:approved.session};
 }
