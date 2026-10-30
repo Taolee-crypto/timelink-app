@@ -8,7 +8,7 @@
     "build:win": "electron-builder --win",
     "build:mac": "electron-builder --mac",
     "build:linux": "electron-builder --linux",
-    "test": "node --test tests"
+    "test": "node scripts/run-tests.cjs"
   },
   "build": {
     "appId": "digital.timelink.player",
