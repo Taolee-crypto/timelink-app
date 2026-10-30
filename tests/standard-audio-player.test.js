@@ -17,7 +17,7 @@ function fixture(){
   const makeElement=()=>({
     textContent:'',value:'',innerHTML:'',style:{},src:'',className:'',tabIndex:0,
     classList:{add(){},remove(){},toggle(){}},
-    setAttribute(){},replaceChildren(){},append(){},addEventListener(type,cb){this['on'+type]=cb;},
+    setAttribute(){},replaceChildren(){},append(){},appendChild(){},addEventListener(type,cb){this['on'+type]=cb;},
     getBoundingClientRect(){return {left:0,width:200};},
   });
   const dom=new Map(),nodes=id=>{
@@ -30,7 +30,6 @@ function fixture(){
   audio.load=function(){};
   audio.pause=function(){this.paused=true;this.onpause?.();};
   audio.play=async function(){this.paused=false;this.onplay?.();};
-  nodes('volumeEl').value='80';
   let onlineStops=0,localOpens=0,onlineOpens=0;
   const tlAPI={
     storeGet:async()=>null,onTLFileOpen(){},onPlaybackWindowClosed(){},
