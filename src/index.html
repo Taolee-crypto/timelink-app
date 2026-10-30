@@ -265,6 +265,42 @@ body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:radial
 button:focus-visible,[role="button"]:focus-visible{outline:2px solid var(--mint);outline-offset:3px}
 @media(min-width:800px){.now-playing{padding:12px 24px}.pl-head{padding:12px 24px}.pl-search{margin-left:24px;margin-right:24px;width:calc(100% - 48px)}.pl-item{padding-left:24px;padding-right:24px}}
 @media(max-width:460px){.np-title{font-size:16px}.disc{width:64px;height:64px}.controls{gap:8px}}
+
+/* Professional workspace: desktop-first arrangement; playback / TL3 internals untouched. */
+body{min-width:420px}
+.main{display:grid;grid-template-columns:minmax(320px,42%) minmax(360px,58%);grid-template-rows:minmax(0,1fr);gap:0}
+.now-playing{min-height:0;overflow-y:auto;border-right:1px solid var(--bd);border-bottom:0;display:flex;flex-direction:column;justify-content:flex-start}
+.cover-row{flex-direction:column;text-align:center;gap:14px;padding:34px 24px 18px}
+.disc{width:148px;height:148px;border-width:3px;box-shadow:0 22px 66px #0009}
+.disc-c{width:45px;height:45px;font-size:12px}
+.np-info{width:100%;min-width:0}.np-title{font-size:23px}.np-artist{font-size:13px;margin-top:6px}
+.np-type{margin-top:10px;font-size:11px}
+.eq{position:absolute;top:28px;right:28px}
+.file-tl{margin:8px 20px 12px}
+.now-playing>.prog{margin-top:10px}
+.now-playing .controls{padding:20px 12px}
+.pl-wrap{min-height:0;border-top:0}
+.pl-head{min-height:68px}
+.pl-search{font-size:13px}
+.pl-list{padding-bottom:20px}
+.pl-item{border-radius:8px;margin:2px 10px}
+.player-mode-bar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 20px;border-bottom:1px solid var(--bd);font-size:11px;color:var(--t2)}
+.player-mode-bar strong{font-size:11px;color:var(--mint)}
+.library-heading{display:flex;align-items:center;gap:12px}
+.library-heading em{font-size:10px;font-style:normal;color:var(--t3)}
+@media(max-width:760px){
+ body{min-width:390px}
+ .main{display:flex;flex-direction:column}
+ .now-playing{overflow:visible;min-height:auto;border-right:0;border-bottom:1px solid var(--bd)}
+ .cover-row{flex-direction:row;text-align:left;padding:14px 16px;gap:14px}
+ .disc{width:66px;height:66px}
+ .disc-c{width:20px;height:20px;font-size:6px}
+ .np-title{font-size:16px}.np-artist{font-size:11px}
+ .eq{display:none}
+ .file-tl{margin:0 14px 6px}
+ .now-playing .controls{padding:10px}
+ .pl-wrap{flex:1}
+}
 </style>
 </head>
 <body>
@@ -375,8 +411,9 @@ button:focus-visible,[role="button"]:focus-visible{outline:2px solid var(--mint)
 
   <!-- 플레이리스트 -->
   <div class="pl-wrap">
+    <div class="player-mode-bar"><span>내 음악 보관함 · TL3 V5</span><strong>파일 직접 열기</strong></div>
     <div class="pl-head">
-      <span class="pl-ttl">PLAYLIST</span>
+      <span class="pl-ttl">MY MUSIC · 재생목록</span>
       <span class="pl-cnt" id="plCnt">0곡</span>
       <button class="pl-add" onclick="addFiles()">+ 추가</button>
     </div>
