@@ -232,7 +232,7 @@ body{background:var(--bg);color:var(--t1);font-family:'DM Sans',sans-serif;
 <div class="titlebar">
   <div class="tb-logo">TL</div>
   <span class="tb-name">TIMELINK PLAYER</span>
-  <span class="tb-ver">v1.1.0</span>
+  <span class="tb-ver">v1.1.3</span>
 </div>
 
 <!-- 유저 바 -->
@@ -258,7 +258,7 @@ body{background:var(--bg);color:var(--t1);font-family:'DM Sans',sans-serif;
 
 <!-- 메인 -->
 <div class="main"
-  ondragover="ev.preventDefault();document.getElementById('dropOv').classList.add('show')"
+  ondragover="event.preventDefault();document.getElementById('dropOv').classList.add('show')"
   ondragleave="if(!event.relatedTarget)document.getElementById('dropOv').classList.remove('show')"
   ondrop="onDrop(event)">
 
