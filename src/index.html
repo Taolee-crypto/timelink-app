@@ -265,6 +265,40 @@ body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:radial
 button:focus-visible,[role="button"]:focus-visible{outline:2px solid var(--mint);outline-offset:3px}
 @media(min-width:800px){.now-playing{padding:12px 24px}.pl-head{padding:12px 24px}.pl-search{margin-left:24px;margin-right:24px;width:calc(100% - 48px)}.pl-item{padding-left:24px;padding-right:24px}}
 @media(max-width:460px){.np-title{font-size:16px}.disc{width:64px;height:64px}.controls{gap:8px}}
+
+/* TimeLink Professional: original file associations and icons remain untouched. */
+:root{--bg:#0b0f16;--bg2:#151b26;--bg3:#202938;--purple:#ed871b;--purple2:#ffad46;--mint:#ffbc65;--gp:rgba(244,139,37,.24);--t1:#f4f6fa;--t2:#aebace;--t3:#8190a5;--bd:rgba(203,213,229,.13);--bd2:rgba(225,233,245,.22)}
+body{background:radial-gradient(ellipse at 20% -20%,rgba(226,113,25,.14),transparent 55%),var(--bg);font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+.titlebar{height:50px;background:#111722;padding:0 20px}.tb-name{font-size:11px;color:var(--t1)}.tb-ver{font-size:10px}
+.user-bar{min-height:48px;padding:9px 20px}.ub-info{font-size:12px;color:var(--t2)}.ub-tl-val{font-size:12px}
+.main{display:grid;grid-template-columns:minmax(340px,42%) minmax(360px,58%);min-height:0}
+.now-playing{min-height:0;overflow-y:auto;border-right:1px solid var(--bd);border-bottom:0;padding:12px 8px;background:linear-gradient(145deg,rgba(38,36,36,.46),rgba(14,20,30,.97))}
+.cover-row{flex-direction:column;text-align:center;gap:15px;padding:24px 18px 14px}
+.disc{width:138px;height:138px;border:3px solid rgba(255,171,71,.45);box-shadow:0 18px 52px #0008}
+.disc-c{width:42px;height:42px;font-size:11px}
+.np-info{width:100%;min-width:0}.np-title{font-size:21px;line-height:1.4}.np-artist{font-size:12px;color:var(--t2);margin-top:5px}
+.np-type{font-size:10px;margin-top:10px}
+.eq{position:absolute;top:24px;right:24px}
+.file-tl{margin:5px 16px 12px;padding:13px;background:#17212d;border:1px solid var(--bd);border-radius:12px}
+.ftl-label{font-size:11px;color:var(--t2)}.ftl-val{font-size:15px}.ftl-info{font-size:10px}
+.prog{padding:12px 16px 4px}.prog-track{height:6px;border-radius:8px}.time-row{font-size:11px;margin-top:9px}
+.controls{gap:12px;padding:17px 6px}.ctrl{width:42px;height:42px;font-size:14px}.ctrl.play{width:58px;height:58px}
+.p-st{font-size:11px;line-height:1.6;padding:8px 14px;min-height:40px}
+.pl-wrap{min-height:0;border-top:0;background:#111823}.pl-head{min-height:62px;padding:12px 20px}
+.pl-ttl{font-size:11px;color:var(--t1);letter-spacing:.12em}.pl-cnt{font-size:11px}.pl-add{font-size:12px;padding:9px 14px}
+.pl-search{font-size:13px;background:#192331;padding:12px}
+.pl-item{min-height:62px;padding:12px 16px;margin:2px 10px;border-radius:9px}.pl-item.cur{background:rgba(247,137,27,.13)}.pl-name{font-size:13px}.pl-sub{font-size:10px}.pl-ico{width:38px;height:38px}
+.player-mode-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 20px;border-bottom:1px solid var(--bd);font-size:11px;color:var(--t2)}
+.player-mode-bar strong{color:var(--purple2);font-size:11px}
+button:focus-visible,[role="button"]:focus-visible,input:focus-visible{outline:2px solid var(--purple2);outline-offset:2px}
+@media(max-width:760px){
+ body{min-width:390px}.main{display:flex;flex-direction:column}
+ .now-playing{overflow:visible;border-right:0;border-bottom:1px solid var(--bd)}
+ .cover-row{flex-direction:row;text-align:left;gap:14px;padding:12px 16px}
+ .disc{width:64px;height:64px}.disc-c{width:20px;height:20px;font-size:6px}
+ .np-title{font-size:16px}.np-artist{font-size:11px}.eq{display:none}
+ .file-tl{margin:0 12px 4px}.controls{padding:8px}.pl-wrap{flex:1}
+}
 </style>
 </head>
 <body>
@@ -375,8 +409,9 @@ button:focus-visible,[role="button"]:focus-visible{outline:2px solid var(--mint)
 
   <!-- 플레이리스트 -->
   <div class="pl-wrap">
+    <div class="player-mode-bar"><span>내 음악 보관함 · TL3 V5</span><strong>파일 직접 열기</strong></div>
     <div class="pl-head">
-      <span class="pl-ttl">PLAYLIST</span>
+      <span class="pl-ttl">MY MUSIC · 재생목록</span>
       <span class="pl-cnt" id="plCnt">0곡</span>
       <button class="pl-add" onclick="addFiles()">+ 추가</button>
     </div>
