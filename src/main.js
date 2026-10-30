@@ -6,6 +6,27 @@ const {app,BrowserWindow,ipcMain,dialog,nativeTheme,shell}=require('electron');
 const fs=require('node:fs'),path=require('node:path'),https=require('node:https');
 const {inspectTLFile}=require('./tlnk-header');
 nativeTheme.themeSource='dark';
+
+// Only trusted main-process callers may open licensed local audio.
+// Never register this entry point as a renderer-accessible IPC handler.
+const {prepareAuthorizedOfflineAudio}=require('./offline-authorized-audio');
+async function openAuthorizedLocalTrack(options){
+  const approved=prepareAuthorizedOfflineAudio(options);
+  const window=new BrowserWindow({
+    width:720,height:330,minWidth:520,minHeight:290,
+    backgroundColor:'#25170f',title:'TimeLink Player · 오프라인',
+    webPreferences:{preload:path.join(__dirname,'offline-audio-preload.js'),contextIsolation:true,nodeIntegration:false,sandbox:true,webSecurity:true}
+  });
+  window.setMenu(null);
+  window.webContents.setWindowOpenHandler(()=>({action:'deny'}));
+  window.webContents.on('will-navigate',e=>e.preventDefault());
+  window.webContents.once('did-finish-load',()=>{
+    if(!window.isDestroyed())window.webContents.send('authorized-offline-audio',approved.mp3);
+  });
+  await window.loadFile(path.join(__dirname,'offline-audio.html'));
+  return {window,session:approved.session};
+}
+
 let mainWindow=null,playbackWindow=null;
 function openInAppTrack(url){
   const target=new URL(url);
