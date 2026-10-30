@@ -494,14 +494,14 @@ async function doLogin(){
     await tlAPI.storeSet('tl_token',_token);
     await tlAPI.storeSet('tl_user',JSON.stringify(_user));
     $('lpPw').value='';$('loginPanel').classList.remove('show');
-    updateUserBar();await syncMyTL();
+    updateUserBar();await syncMyTL();await refreshOfflineAvailability();
   }catch(e){$('lpErr').textContent='❌ '+e.message;}
   finally{btn.disabled=false;btn.textContent='로그인';}
 }
 function doLogout(){
   _token=null;_user=null;
   tlAPI.storeSet('tl_token',null);tlAPI.storeSet('tl_user',null);
-  updateUserBar();setSt('로그아웃했습니다. 암호화 음원 재생은 다시 로그인해야 합니다.','warn');
+  updateUserBar();$('ftlRemain').textContent='로그인하면 이 곡의 오프라인 이용 가능 시간을 확인할 수 있습니다.';setSt('로그아웃했습니다. 온라인 재생은 로그인해야 합니다.','warn');
 }
 async function addFiles(){
   const paths=await tlAPI.openFileDialog();
