@@ -291,6 +291,23 @@ body{background:radial-gradient(ellipse at 20% -20%,rgba(226,113,25,.14),transpa
 .player-mode-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 20px;border-bottom:1px solid var(--bd);font-size:11px;color:var(--t2)}
 .player-mode-bar strong{color:var(--purple2);font-size:11px}
 button:focus-visible,[role="button"]:focus-visible,input:focus-visible{outline:2px solid var(--purple2);outline-offset:2px}
+
+/* Orange-first desktop shell. Preserve functional classes and player controls. */
+:root{--bg:#20140d;--bg2:#332014;--bg3:#462b19;--purple:#f58a1f;--purple2:#ffc06a;--mint:#ffd092;--gp:rgba(245,138,31,.35);--bd:rgba(255,175,83,.23);--bd2:rgba(255,202,139,.42)}
+body{background:radial-gradient(ellipse 95% 80% at 14% -15%,rgba(251,139,21,.30),transparent 68%),linear-gradient(145deg,#3a210f 0%,#22150e 50%,#1c130d 100%)}
+.titlebar{background:linear-gradient(90deg,#8f3d0b,#bf5e0e 62%,#7d3509);border-bottom:1px solid rgba(255,186,100,.55)}
+.tb-logo{background:linear-gradient(135deg,#ffc36f,#e76d08);color:#321806}
+.user-bar{background:linear-gradient(90deg,#4c2914,#2d1c11);border-bottom:1px solid var(--bd)}
+.now-playing{background:linear-gradient(155deg,#66320e 0%,#392310 34%,#241912 86%);border-right:1px solid rgba(255,176,80,.34)}
+.pl-wrap{background:linear-gradient(165deg,#392211,#231710 72%);border-left:1px solid rgba(255,162,55,.22)}
+.pl-head{background:rgba(136,66,12,.22);border-bottom:1px solid var(--bd)}
+.file-tl{background:linear-gradient(125deg,rgba(142,67,8,.48),rgba(64,39,18,.68));border-color:rgba(255,178,84,.36)}
+.pl-search{background:#332315;border-color:rgba(255,178,84,.3);color:#fff0d8}
+.pl-item:hover{background:rgba(255,159,43,.12)}
+.pl-item.cur{background:linear-gradient(90deg,rgba(244,127,13,.40),rgba(245,138,31,.11));box-shadow:inset 3px 0 #ffa744}
+.ctrl.play,.pl-add{box-shadow:0 6px 21px rgba(241,105,10,.25)}
+.player-mode-bar{background:rgba(113,51,10,.18)}
+
 @media(max-width:760px){
  body{min-width:390px}.main{display:flex;flex-direction:column}
  .now-playing{overflow:visible;border-right:0;border-bottom:1px solid var(--bd)}
