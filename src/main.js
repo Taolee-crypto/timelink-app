@@ -4,6 +4,7 @@
 // authoritative; an Electron process never rewrites media or mints local TL.
 const {app,BrowserWindow,ipcMain,dialog,nativeTheme,shell}=require('electron');
 const fs=require('node:fs'),path=require('node:path'),https=require('node:https');
+const {pathToFileURL}=require('node:url');
 const {inspectTLFile}=require('./tlnk-header');
 nativeTheme.themeSource='dark';
 
@@ -50,7 +51,7 @@ function openInAppTrack(url){
     width:940,height:760,minWidth:520,minHeight:540,
     title:'TimeLink Player · TL3 V5',
     backgroundColor:'#080813',
-    webPreferences:{contextIsolation:true,nodeIntegration:false,sandbox:true,webSecurity:true}
+    webPreferences:{preload:path.join(__dirname,'playback-auth-preload.js'),contextIsolation:true,nodeIntegration:false,sandbox:true,webSecurity:true}
   });
   playbackWindow.setMenu(null);
   playbackWindow.webContents.setWindowOpenHandler(()=>({action:'deny'}));
@@ -68,10 +69,33 @@ function openInAppTrack(url){
   return playbackWindow.loadURL(target.toString());
 }
 
-const SUPPORTED=/\.(?:tl|tl3|tl4|tlg|tld|tle)$/i;
+const SUPPORTED=/\.(?:tl|tl3|tl4|tlg|tld|tle|mp3|wav|flac|m4a|aac|ogg|opus)$/i;
+const STANDARD_AUDIO=/\.(?:mp3|wav|flac|m4a|aac|ogg|opus)$/i;
 const API_HOST='api.timelink.digital';
 const WEBSITE='https://www.timelink.digital';
 const STORE_NAME='tl_auth.json';
+
+const PLAYBACK_ALLOWED_PATHS=new Set(['/track.html','/login.html','/signup.html','/shareplace.html','/wallet.html']);
+// The desktop login and in-app website previously used different storage contexts.
+// A website browser window cannot read Electron's userData; bridge only to the
+// trusted top-level timelink.digital frame and never to arbitrary web content.
+ipcMain.on('desktop-playback-session',event=>{
+  event.returnValue=null;
+  const window=playbackWindow;
+  if(!window||window.isDestroyed()||event.sender!==window.webContents||
+     event.senderFrame!==window.webContents.mainFrame)return;
+  let address;
+  try{address=new URL(event.senderFrame.url);}catch{return;}
+  if(address.origin!==WEBSITE||!PLAYBACK_ALLOWED_PATHS.has(address.pathname))return;
+  try{
+    const stored=JSON.parse(fs.readFileSync(userStore(),'utf8'));
+    if(typeof stored.tl_token!=='string'||stored.tl_token.length<16||
+       typeof stored.tl_user!=='string')return;
+    const user=JSON.parse(stored.tl_user);
+    if(!user||typeof user!=='object'||!user.id||!user.email)return;
+    event.returnValue={token:stored.tl_token,user:stored.tl_user};
+  }catch{}
+});
 function userStore(){return path.join(app.getPath('userData'),STORE_NAME);}
 function nativeRequest(pathname,{method='GET',token,body}={}){
   return new Promise(resolve=>{
@@ -134,6 +158,19 @@ app.on('open-file',(event,fp)=>{
 });
 app.on('window-all-closed',()=>{if(process.platform!=='darwin')app.quit();});
 
+// Unencrypted, user-owned standard audio is fully local, no account or
+// server dependency. TL3 V5 stays on its verified license path.
+ipcMain.handle('open-local-audio',async(_event,fp)=>{
+  try{
+    if(typeof fp!=='string'||fp.length>4096||!STANDARD_AUDIO.test(fp))
+      return {ok:false,error:'지원하지 않는 일반 오디오 파일입니다.'};
+    const resolved=fs.realpathSync(fp);
+    const stat=fs.statSync(resolved);
+    if(!stat.isFile()||!stat.size||stat.size>512*1024*1024)
+      return {ok:false,error:'파일 크기 또는 종류를 확인해 주세요.'};
+    return {ok:true,url:pathToFileURL(resolved).href};
+  }catch(e){return {ok:false,error:'파일을 열 수 없습니다: '+e.message};}
+});
 ipcMain.handle('parse-tl-header',async(_event,fp)=>{
   if(typeof fp!=='string'||!SUPPORTED.test(fp)||fp.length>4096)
     return {ok:false,error:'지원하지 않는 파일 경로입니다.'};
@@ -148,7 +185,16 @@ ipcMain.handle('record-poc',()=>({ok:false,error:'청취 기여는 검증된 서
 ipcMain.handle('login',async(_event,credentials)=>{
   const email=String(credentials?.email||'').trim(),password=String(credentials?.password||'');
   if(!email||!password)return {ok:false,error:'이메일과 비밀번호가 필요합니다.'};
-  return nativeRequest('/api/auth/login',{method:'POST',body:{email,password}});
+  const response=await nativeRequest('/api/auth/login',{method:'POST',body:{email,password}});
+  if(response.ok===false)return response;
+  // The canonical /api/auth/login endpoint returns {token,access_token,user},
+  // not {ok:true}. Normalize its verified 2xx response for the desktop UI.
+  const token=response.token||response.access_token;
+  const user=response.user;
+  if(typeof token!=='string'||token.length<16||!user||
+     typeof user!=='object'||!user.id||!user.email)
+    return {ok:false,error:'로그인 서버의 인증정보가 올바르지 않습니다.'};
+  return {ok:true,token,user};
 });
 ipcMain.handle('get-my-tl',async(_event,{token}={})=>{
   if(!token)return {ok:false,error:'로그인이 필요합니다.'};
@@ -200,7 +246,7 @@ ipcMain.handle('open-wallet',async()=>{
 });
 ipcMain.handle('open-file-dialog',async()=>{
   const r=await dialog.showOpenDialog(mainWindow,{
-    title:'TimeLink 파일 열기',filters:[{name:'TimeLink Files',extensions:['tl','tl3','tl4','tlg','tld','tle']}],
+    title:'음악 파일 열기',filters:[{name:'TimeLink / Music',extensions:['tl','tl3','tl4','tlg','tld','tle','mp3','wav','flac','m4a','aac','ogg','opus']}],
     properties:['openFile','multiSelections']
   });
   return r.canceled?null:r.filePaths;
