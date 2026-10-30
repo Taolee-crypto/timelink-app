@@ -491,7 +491,7 @@ function selectTrack(index){
   $('ftlRemain').textContent='TL 잔액·과금은 서버에서 확인';
   $('ftlRate').textContent='1 TL/초 · 실제 청취';
   renderPL();
-  setSt(t.version===5?'▶ 재생을 누르면 앱 내부 V5 재생 창을 엽니다.':'구버전 TL 파일입니다. V5로 다시 자산화한 후 청취하세요.','warn');
+  setSt(t.version===5?'TL3 V5 파일을 확인했습니다. 현재 파일은 오프라인 재생권이 발급되지 않은 서버 인증형 파일입니다. 로그인 없이 재생하려면 별도 오프라인 권한이 필요합니다.':'구버전 TL 파일입니다. V5로 다시 자산화한 후 청취하세요.','warn');
 }
 async function playTrack(index){selectTrack(index);return togglePlay();}
 async function togglePlay(){
@@ -502,7 +502,7 @@ async function togglePlay(){
     setSt('구버전 TLNK 파일은 서버 라이선스 없이 재생할 수 없습니다. V5 음원으로 다시 등록해 주세요.','err');
     return;
   }
-  if(!_token){setSt('먼저 로그인해 주세요. 온라인 재생도 회원 인증이 필요합니다.','warn');$('loginPanel').classList.add('show');return;}
+  if(!_token){setSt('이 TL3 V5 파일에는 검증 가능한 오프라인 청취권이 아직 없습니다. 파일을 PC에서 재생하기 위해 로그인을 강제하지 않습니다. 오프라인 라이선스 발급·로컬 복호화·재접속 정산 기능이 준비되기 전까지 재생할 수 없습니다.','err');return;}
   if(!t.containerSha256){setSt('파일의 무결성 해시를 확인할 수 없습니다. 다시 다운로드해 주세요.','err');return;}
   const current=_curIdx,_tok=_token;
   _opening=true;$('playBtn').textContent='⏳';
