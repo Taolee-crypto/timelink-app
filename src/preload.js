@@ -1,6 +1,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('tlAPI', {
   parseTLHeader:    fp    => ipcRenderer.invoke('parse-tl-header', fp),
+  openLocalAudio:   fp    => ipcRenderer.invoke('open-local-audio', fp),
   decryptFile:      fp    => ipcRenderer.invoke('decrypt-file', fp),
   updateTLBalance:  opts  => ipcRenderer.invoke('update-tl-balance', opts),
   rechargeTL:       opts  => ipcRenderer.invoke('recharge-tl', opts),
