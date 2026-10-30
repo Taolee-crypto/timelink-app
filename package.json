@@ -50,13 +50,16 @@
       "artifactName": "TimeLink-Player-Setup-${version}.exe"
     },
     "mac": {
-      "target": "dmg"
+      "target": "dmg",
+      "artifactName": "TimeLink-Player-${version}-${arch}.${ext}"
     },
     "linux": {
       "target": [
         "AppImage",
         "deb"
-      ]
+      ],
+      "artifactName": "TimeLink-Player-${version}.${ext}",
+      "maintainer": "TimeLink <creator@timelink.digital>"
     },
     "nsis": {
       "oneClick": false,
@@ -68,5 +71,8 @@
     "electron": "^28.0.0",
     "electron-builder": "^24.0.0"
   },
-  "author": "TILO Group / (주)틸로코리아"
+  "author": {
+    "name": "TILO Group",
+    "email": "creator@timelink.digital"
+  }
 }
