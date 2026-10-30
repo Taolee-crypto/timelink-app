@@ -22,7 +22,8 @@ test('offline ledger writes, local recharge, legacy audio decryption and phantom
   assert.ok(main.includes(deny),deny+' must explicitly fail closed for existing callers');
  }
  assert.ok(main.includes('webSecurity:true'),'untrusted local content must not disable web security');
- assert.ok(main.includes("shell.openExternal(url)"),'only validated canonical online URL may leave Electron');
+ assert.ok(main.includes('await openInAppTrack(url)'),'canonical V5 track must open in protected in-app window');
+ assert.ok(main.includes("target.origin!==WEBSITE||target.pathname!=='/track.html'"),'only canonical V5 URLs allowed');
  assert.ok(main.includes('resolve-by-container/'),'download hash must map through authenticated sealed V5 server');
  assert.ok(main.includes("response.statusCode>=300")||main.includes('res.statusCode>=300'),'non-200 server replies must not count as successful TL operations');
 });
