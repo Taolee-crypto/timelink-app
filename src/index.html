@@ -564,7 +564,7 @@ async function togglePlay(){
     if(current!==_curIdx||_tok!==_token)return;
     if(!r?.ok)throw Error(r?.error||'공개된 암호화 자산과 일치하지 않습니다.');
     $('playBtn').classList.add('on');
-    setSt('음악 재생 창이 열렸습니다. 중지 버튼으로 실제 재생을 종료할 수 있습니다.','ok');
+    setSt('플레이어 내부 V5 재생 창을 열었습니다. 중지 버튼으로 실제 재생을 종료할 수 있습니다.','ok');
     await syncMyTL();
   }catch(e){if(current===_curIdx)setSt('❌ '+e.message,'err');}
   finally{_opening=false;$('playBtn').textContent='▶';}
