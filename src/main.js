@@ -162,6 +162,16 @@ ipcMain.handle('open-online-track',async(_event,{sha256,token}={})=>{
   try{await openInAppTrack(url);return {ok:true,opened:true,in_app:true};}
   catch(e){return {ok:false,error:'앱 내부 재생 창을 열 수 없습니다: '+e.message};}
 });
+// The stop button must stop the ACTUAL authorized playback window, not just a label.
+ipcMain.handle('stop-online-track',async()=>{
+  if(!playbackWindow||playbackWindow.isDestroyed())return {ok:true,stopped:false};
+  playbackWindow.close();
+  playbackWindow=null;
+  return {ok:true,stopped:true};
+});
+ipcMain.handle('online-track-status',()=>{
+  return {ok:true,playingWindow:!!(playbackWindow&&!playbackWindow.isDestroyed())};
+});
 ipcMain.handle('open-shareplace',async()=>{
   try{await shell.openExternal(WEBSITE+'/shareplace.html');return {ok:true};}
   catch(e){return {ok:false,error:e.message};}
