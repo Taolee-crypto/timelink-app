@@ -563,12 +563,21 @@ async function togglePlay(){
     const r=await tlAPI.openOnlineTrack({sha256:t.containerSha256,token:_tok});
     if(current!==_curIdx||_tok!==_token)return;
     if(!r?.ok)throw Error(r?.error||'공개된 암호화 자산과 일치하지 않습니다.');
-    setSt('✅ 플레이어 내부 V5 재생 창을 열었습니다. 음악과 TL 정산은 앱의 보호된 재생 창에서 진행됩니다.','ok');
+    $('playBtn').classList.add('on');
+    setSt('음악 재생 창이 열렸습니다. 중지 버튼으로 실제 재생을 종료할 수 있습니다.','ok');
     await syncMyTL();
   }catch(e){if(current===_curIdx)setSt('❌ '+e.message,'err');}
   finally{_opening=false;$('playBtn').textContent='▶';}
 }
-function stopPB(){_opening=false;setSt('파일 재생은 온라인 페이지에서 관리합니다.','warn');}
+async function stopPB(){
+  if(_opening){setSt('재생 연결 중입니다. 연결된 창을 닫아 중지하세요.','warn');return;}
+  try{
+    const result=await tlAPI.stopOnlineTrack();
+    $('playBtn').textContent='▶';$('playBtn').classList.remove('on');
+    setSt(result?.stopped?'재생을 중지했습니다.':'현재 재생 중인 음악이 없습니다.',result?.ok?'ok':'warn');
+    await syncMyTL();
+  }catch(e){setSt('재생 중지 실패: '+e.message,'err');}
+}
 function prevTrack(){if(_curIdx>0)selectTrack(_curIdx-1);}
 function nextTrack(){if(_curIdx+1<_playlist.length)selectTrack(_curIdx+1);}
 function removeTrack(index){
