@@ -1,114 +1,98 @@
-name: Build TimeLink Player
-
+name: Build TimeLink Player (immutable releases)
 on:
+  pull_request:
   push:
-    branches:
-      - main
+    branches: [main]
+    tags: ['v*']
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  build-win:
-    runs-on: windows-latest
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: '22'
+          cache: npm
       - run: npm ci
       - run: npm test
-      - run: npm run build:win
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Verify Windows installer matches package version
-        shell: pwsh
-        run: |
-          $version = node -p "require('./package.json').version"
-          $expected = "dist/TimeLink-Player-Setup-$version.exe"
-          if (!(Test-Path $expected)) { throw "Installer missing or version mismatch: $expected" }
-          if ((Get-Item $expected).Length -lt 1000000) { throw "Installer is unexpectedly small: $expected" }
-          Write-Host "Verified installer: $expected"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: TimeLink-Player-Setup-1.1.4-Windows
-          path: dist/TimeLink-Player-Setup-1.1.4.exe
-          if-no-files-found: error
-          retention-days: 30
 
-  build-mac:
-    runs-on: macos-latest
+  build:
+    needs: verify
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: win
+            arch: x64
+            packages: 'dist/*.exe'
+          - os: macos-latest
+            platform: mac
+            arch: arm64
+            packages: 'dist/*.dmg'
+          - os: ubuntu-24.04
+            platform: linux
+            arch: x64
+            packages: 'dist/*.AppImage\ndist/*.deb'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: '22'
+          cache: npm
       - run: npm ci
-      - run: npm test
-      - run: npm run build:mac
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build without publishing any GitHub Release
+        run: npx electron-builder --${{ matrix.platform }} --${{ matrix.arch }} --publish never
       - uses: actions/upload-artifact@v4
         with:
-          name: TimeLink-Player-1.1.4-macOS
-          path: dist/*.dmg
+          name: timelink-player-${{ matrix.platform }}-${{ github.sha }}
+          path: ${{ matrix.packages }}
           if-no-files-found: error
           retention-days: 30
 
-  build-linux:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - run: npm ci
-      - run: npm test
-      - run: npm run build:linux
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/upload-artifact@v4
-        with:
-          name: TimeLink-Player-1.1.4-Linux
-          path: |
-            dist/*.AppImage
-            dist/*.deb
-          if-no-files-found: error
-          retention-days: 30
-
-  publish-v114:
-    name: Publish verified v1.1.4 installers
-    needs: [build-win, build-mac, build-linux]
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    concurrency:
-      group: timelink-player-v114-release
-      cancel-in-progress: false
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          pattern: TimeLink-Player-*
-          path: release-assets
+          pattern: timelink-player-*-${{ github.sha }}
           merge-multiple: true
-      - name: Check real installers before publishing
+          path: release-assets
+      - name: Verify tag matches package and all four installer binaries exist
         shell: bash
         run: |
           set -euo pipefail
-          test "$(node -p "require('./package.json').version")" = "1.1.4"
-          test -s release-assets/TimeLink-Player-Setup-1.1.4.exe
-          find release-assets -maxdepth 1 -name 'TimeLink-Player-1.1.4-*.dmg' -size +1M | grep -q .
-          test -s release-assets/TimeLink-Player-1.1.4.AppImage
-          test -s release-assets/TimeLink-Player-1.1.4.deb
-          ls -lh release-assets/
-      - name: Publish exact installers for official download page
+          test "$GITHUB_REF_NAME" = "v$(node -p "require('./package.json').version")"
+          test -s "release-assets/TimeLink-Player-Setup-${GITHUB_REF_NAME#v}.exe"
+          test -s "release-assets/TimeLink-Player-${GITHUB_REF_NAME#v}-arm64.dmg"
+          test -s "release-assets/TimeLink-Player-${GITHUB_REF_NAME#v}.AppImage"
+          test -s "release-assets/TimeLink-Player-${GITHUB_REF_NAME#v}.deb"
+          find release-assets -maxdepth 1 -type f -size +1M -print
+      - name: Refuse to replace any previously published release assets
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: bash
         run: |
           set -euo pipefail
-          if ! gh release view v1.1.4 >/dev/null 2>&1; then
-            gh release create v1.1.4 --target "$GITHUB_SHA" --title "TimeLink Player v1.1.4" --notes "Desktop player: Windows, macOS, Linux. Online TL3 V5 playback requires server authorization. Fully offline TL3 playback and offline TL settlement are not yet supported."
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "::error::Release already exists. Published installers are immutable."
+            exit 1
           fi
-          gh release upload v1.1.4 release-assets/TimeLink-Player-Setup-1.1.4.exe release-assets/TimeLink-Player-1.1.4-*.dmg release-assets/TimeLink-Player-1.1.4.AppImage release-assets/TimeLink-Player-1.1.4.deb --clobber
+          gh release create "$GITHUB_REF_NAME" release-assets/*.exe release-assets/*.dmg release-assets/*.AppImage release-assets/*.deb \
+            --target "$GITHUB_SHA" \
+            --title "TimeLink Player $GITHUB_REF_NAME" \
+            --notes "Desktop installer release. Offline playback is available only when signed offline licensing and server settlement are implemented, independently tested and enabled."
