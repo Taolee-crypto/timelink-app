@@ -118,6 +118,10 @@ ipcMain.handle('open-shareplace',async()=>{
   try{await shell.openExternal(WEBSITE+'/shareplace.html');return {ok:true};}
   catch(e){return {ok:false,error:e.message};}
 });
+ipcMain.handle('open-wallet',async()=>{
+  try{await shell.openExternal(WEBSITE+'/wallet.html');return {ok:true};}
+  catch(e){return {ok:false,error:e.message};}
+});
 ipcMain.handle('open-file-dialog',async()=>{
   const r=await dialog.showOpenDialog(mainWindow,{
     title:'TimeLink 파일 열기',filters:[{name:'TimeLink Files',extensions:['tl','tl3','tl4','tlg','tld','tle']}],
