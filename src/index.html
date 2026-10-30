@@ -561,6 +561,13 @@ async function refreshOfflineAvailability(){
     }else $('ftlRemain').textContent=quote?.error||'오프라인 이용 가능 시간 조회 실패';
   }catch(e){if(current===_curIdx)$('ftlRemain').textContent='서버에 연결할 수 없습니다.';}
 }
+// Stay in sync with the real music window, including manual window close.
+tlAPI.onPlaybackWindowClosed(()=>{
+  $('playBtn').textContent='▶';
+  $('playBtn').classList.remove('on');
+  setSt('음악 재생 창을 닫았습니다.','ok');
+  void syncMyTL();
+});
 async function playTrack(index){selectTrack(index);return togglePlay();}
 async function togglePlay(){
   const t=_playlist[_curIdx];

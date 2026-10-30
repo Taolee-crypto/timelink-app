@@ -17,5 +17,9 @@ contextBridge.exposeInMainWorld('tlAPI', {
   toggleFullscreen: ()    => ipcRenderer.invoke('toggle-fullscreen'),
   storeGet:         k     => ipcRenderer.invoke('store-get', k),
   storeSet:         (k,v) => ipcRenderer.invoke('store-set', k, v),
+  onPlaybackWindowClosed: cb => {
+    if(typeof cb!=='function')return;
+    ipcRenderer.on('playback-window-closed',()=>cb());
+  },
   onTLFileOpen:     cb    => ipcRenderer.on('tl-file-open', (_e, fp) => cb(fp)),
 });
