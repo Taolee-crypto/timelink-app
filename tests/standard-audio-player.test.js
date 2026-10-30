@@ -7,10 +7,9 @@ const html=fs.readFileSync('src/index.html','utf8');
 const main=fs.readFileSync('src/main.js','utf8');
 const preload=fs.readFileSync('src/preload.js','utf8');
 function playerCode(){
-  const opening=html.indexOf('<script>\n// TimeLink TL3 V5');
-  const end=html.indexOf('</script>',opening);
-  assert.ok(opening>=0&&end>opening,'desktop UI script exists');
-  return html.slice(opening+'<script>'.length,end);
+  const match=html.match(/<script>\s*\/\/ TimeLink TL3 V5[\s\S]*?<\/script>/);
+  assert.ok(match,'desktop UI script exists');
+  return match[0].slice('<script>'.length,-'</script>'.length);
 }
 function fixture(){
   const events={};
