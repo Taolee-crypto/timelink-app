@@ -585,7 +585,7 @@ async function togglePlay(){
   }catch(e){if(current===_curIdx)setSt('❌ '+e.message,'err');}
   finally{_opening=false;$('playBtn').textContent='▶';}
 }
-async function stopPB(){
+async async function stopPB(){
   if(_opening){setSt('재생 연결 중입니다. 연결된 창을 닫아 중지하세요.','warn');return;}
   try{
     const result=await tlAPI.stopOnlineTrack();
