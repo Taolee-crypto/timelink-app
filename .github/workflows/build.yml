@@ -31,15 +31,12 @@ jobs:
           - os: windows-latest
             platform: win
             arch: x64
-            packages: 'dist/*.exe'
           - os: macos-latest
             platform: mac
             arch: arm64
-            packages: 'dist/*.dmg'
           - os: ubuntu-24.04
             platform: linux
             arch: x64
-            packages: 'dist/*.AppImage\ndist/*.deb'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     steps:
@@ -54,7 +51,11 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: timelink-player-${{ matrix.platform }}-${{ github.sha }}
-          path: ${{ matrix.packages }}
+          path: |
+            dist/*.exe
+            dist/*.dmg
+            dist/*.AppImage
+            dist/*.deb
           if-no-files-found: error
           retention-days: 30
 
