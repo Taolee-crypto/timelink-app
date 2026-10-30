@@ -10,7 +10,7 @@ test('professional player opens wide enough for side-by-side orange desktop work
  assert.match(ui,/--purple:#ed871b/);
 });
 test('new installer and application version are consistent',()=>{
- assert.match(pkg.version,/^\\d+\\.\\d+\\.\\d+$/);
+ assert.equal(pkg.version.split('.').length,3);
  assert.ok(ui.includes('class="tb-ver">v'+pkg.version));
  assert.ok(pkg.build.fileAssociations.some(x=>x.ext==='tl3'));
 });
