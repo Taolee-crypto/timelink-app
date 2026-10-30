@@ -3,7 +3,6 @@ on:
   pull_request:
   push:
     branches: [main]
-    tags: ['v*']
   workflow_dispatch:
 
 permissions:
@@ -61,9 +60,12 @@ jobs:
 
   release:
     needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 12
+    concurrency:
+      group: timelink-player-immutable-publish
+      cancel-in-progress: false
     permissions:
       contents: write
     steps:
@@ -73,27 +75,46 @@ jobs:
           pattern: timelink-player-*-${{ github.sha }}
           merge-multiple: true
           path: release-assets
-      - name: Verify tag matches package and all four installer binaries exist
-        shell: bash
-        run: |
-          set -euo pipefail
-          test "$GITHUB_REF_NAME" = "v$(node -p "require('./package.json').version")"
-          test -s "release-assets/TimeLink-Player-Setup-${GITHUB_REF_NAME#v}.exe"
-          test -s "release-assets/TimeLink-Player-${GITHUB_REF_NAME#v}-arm64.dmg"
-          test -s "release-assets/TimeLink-Player-${GITHUB_REF_NAME#v}.AppImage"
-          test -s "release-assets/TimeLink-Player-${GITHUB_REF_NAME#v}.deb"
-          find release-assets -maxdepth 1 -type f -size +1M -print
-      - name: Refuse to replace any previously published release assets
+      - name: Validate exact versioned installers and decide whether to publish
+        id: release-check
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            echo "::error::Release already exists. Published installers are immutable."
+          VERSION="$(node -p "require('./package.json').version")"
+          TAG="v$VERSION"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          test -s "release-assets/TimeLink-Player-Setup-$VERSION.exe"
+          test -s "release-assets/TimeLink-Player-$VERSION-arm64.dmg"
+          test -s "release-assets/TimeLink-Player-$VERSION.AppImage"
+          test -s "release-assets/TimeLink-Player-$VERSION.deb"
+          find release-assets -maxdepth 1 -type f -size +1M -print
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Version $TAG was previously released; no replacement permitted."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # A tag without an existing release must point to the exact verified source.
+          EXISTING_SHA="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq '.object.sha' 2>/dev/null || true)"
+          if [ -n "$EXISTING_SHA" ] && [ "$EXISTING_SHA" != "$GITHUB_SHA" ]; then
+            echo "::error::Tag points to a different commit; refusing to retarget."
             exit 1
           fi
-          gh release create "$GITHUB_REF_NAME" release-assets/*.exe release-assets/*.dmg release-assets/*.AppImage release-assets/*.deb \
+          if [ -z "$EXISTING_SHA" ]; then
+            gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
+              -f ref="refs/tags/$TAG" -f sha="$GITHUB_SHA" >/dev/null
+          fi
+          echo "publish=true" >> "$GITHUB_OUTPUT"
+      - name: Publish new tag and installers without overwriting existing assets
+        if: steps.release-check.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ steps.release-check.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create "$RELEASE_TAG" release-assets/*.exe release-assets/*.dmg release-assets/*.AppImage release-assets/*.deb \
             --target "$GITHUB_SHA" \
-            --title "TimeLink Player $GITHUB_REF_NAME" \
-            --notes "Desktop installer release. Offline playback is available only when signed offline licensing and server settlement are implemented, independently tested and enabled."
+            --title "TimeLink Player $RELEASE_TAG" \
+            --notes "Desktop login and authenticated online playback synchronization corrected. Offline grant issuance and offline TL settlement remain unavailable; this release does not claim complete offline playback."
