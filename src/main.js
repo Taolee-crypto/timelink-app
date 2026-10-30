@@ -70,7 +70,7 @@ function nativeRequest(pathname,{method='GET',token,body}={}){
 }
 function createWindow(){
   mainWindow=new BrowserWindow({
-    width:460,height:780,minWidth:400,minHeight:620,
+    width:1120,height:780,minWidth:800,minHeight:620,
     backgroundColor:'#050508',
     webPreferences:{preload:path.join(__dirname,'preload.js'),
       contextIsolation:true,nodeIntegration:false,sandbox:true,webSecurity:true}
