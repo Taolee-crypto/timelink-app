@@ -149,6 +149,11 @@ ipcMain.handle('get-my-tl',async(_event,{token}={})=>{
 // The hash identifies a sealed V5 release but does NOT authorize listening.
 // Opening the official website still enforces login, preflight, license and
 // audible-time metering. Never pass a bearer token in a browser URL.
+ipcMain.handle('get-offline-quote',async(_event,{sha256,token}={})=>{
+  if(typeof token!=='string'||!token)return {ok:false,error:'TL 잔액을 확인하려면 로그인해 주세요.'};
+  if(typeof sha256!=='string'||!/^[a-f0-9]{64}$/i.test(sha256))return {ok:false,error:'파일 확인값이 올바르지 않습니다.'};
+  return nativeRequest('/api/v1/tl3/v5/offline/quote/'+sha256.toLowerCase(),{token});
+});
 ipcMain.handle('open-online-track',async(_event,{sha256,token}={})=>{
   if(!token)return {ok:false,error:'보호된 TL3 V5는 로그인 후 들을 수 있습니다.'};
   if(typeof sha256!=='string'||!/^[a-f0-9]{64}$/i.test(sha256))
