@@ -31,7 +31,7 @@ test('offline playlist only selects tracks, never silently launches licensed pla
  assert.ok(renderer.includes('async function togglePlay()'));
  assert.ok(renderer.includes('t.version!==5'),'unlicensed legacy track must be rejected');
  assert.ok(renderer.includes('if(!_token)'),'online play must require authentication');
- assert.ok(renderer.includes('containerSha256:t.containerSha256,token:_tok}'),'server lookup requires exact selected container hash');
+ assert.ok(renderer.includes('sha256:t.containerSha256,token:_tok}'),'server lookup requires exact selected container hash');
  assert.ok(renderer.includes('server')||renderer.includes('서버'),'desktop user-facing hint must explain remote playback');
  assert.ok(renderer.includes('holder.replaceChildren()'),'untrusted filename must not be rendered as HTML');
  assert.ok(bridge.includes('openOnlineTrack'),'preload must explicitly expose the one safe online action');
