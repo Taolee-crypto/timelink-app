@@ -9,6 +9,8 @@ test('Release assets are never rewritten by an ordinary main push',()=>{
  assert.doesNotMatch(yml,/--clobber/);
  assert.doesNotMatch(yml,/gh release upload/);
  assert.match(yml,/git\/ref\/tags\/\$TAG/);
+ assert.ok(yml.includes("--jq '.object.sha // empty'"),'missing tag must not become a literal null SHA');
+ assert.ok(yml.includes('EXISTING_SHA\" = \"null\"'),'null fallback is required');
  assert.match(yml,/publish=false/);
 });
 test('All three OS jobs build without publishing and tag matches package version',()=>{
