@@ -330,7 +330,7 @@ body{background:radial-gradient(ellipse 95% 80% at 14% -15%,rgba(251,139,21,.30)
 <div class="titlebar">
   <div class="tb-logo">TL</div>
   <span class="tb-name">TIMELINK PLAYER</span>
-  <span class="tb-ver">v1.1.5</span>
+  <span class="tb-ver">v1.1.6</span>
 </div>
 
 <!-- 유저 바 -->
@@ -426,7 +426,7 @@ body{background:radial-gradient(ellipse 95% 80% at 14% -15%,rgba(251,139,21,.30)
 
   <!-- 플레이리스트 -->
   <div class="pl-wrap">
-    <div class="player-mode-bar"><span>내 음악 보관함 · TL3 V5 / 일반 오디오</span><strong>파일 직접 열기</strong></div>
+    <div class="player-mode-bar"><span>내 TL 음악 보관함 · TimeLink 보호 파일 전용</span><strong>파일 직접 열기</strong></div>
     <div class="pl-head">
       <span class="pl-ttl">MY MUSIC · 재생목록</span>
       <span class="pl-cnt" id="plCnt">0곡</span>
@@ -434,7 +434,7 @@ body{background:radial-gradient(ellipse 95% 80% at 14% -15%,rgba(251,139,21,.30)
     </div>
     <div class="pl-empty" id="plEmpty" onclick="addFiles()">
       <div class="pl-empty-ico">📂</div>
-      <div class="pl-empty-txt">TL3 보호 파일을 드롭하거나<br>+ 추가 버튼을 클릭하세요<br><small style="opacity:.5">MP3 · WAV · FLAC 등은 로그인 없이 재생 · TL3 V5는 라이선스 확인</small></div>
+      <div class="pl-empty-txt">TL3 보호 파일을 드롭하거나<br>+ 추가 버튼을 클릭하세요<br><small style="opacity:.5">TL 파일만 지원 · TL3 V5는 LOVE CODE·라이선스 확인</small></div>
     </div>
     <input class="pl-search" id="plSearch" type="search" placeholder="곡 제목 · 파일 검색" aria-label="재생목록 검색" oninput="renderPL()">
     <div class="player-info-strip">TL3 V5 보호 콘텐츠 · <strong>실제 청취 1초당 1 TL</strong> · 미확인 파일 잔액은 충전으로 표시하지 않습니다.</div>
@@ -442,18 +442,18 @@ body{background:radial-gradient(ellipse 95% 80% at 14% -15%,rgba(251,139,21,.30)
   </div>
 </div>
 
-<audio id="audioEl" style="display:none"></audio>
 
 <script>
 // TimeLink TL3 V5 has a server-controlled session license and TL ledger.
 // This desktop window inspects files only; official web playback handles
 // decryption, rights, metering and settlement. No offline TL state is minted.
-let _token=null,_user=null,_playlist=[],_curIdx=-1,_opening=false,_localLoadedPath=null;
+let _token=null,_user=null,_playlist=[],_curIdx=-1,_opening=false;
+const TL_FILES=/\.(?:tl|tl3|tl4|tlg|tld|tle)$/i;
 const $=id=>document.getElementById(id);
 function setSt(message,type=''){const el=$('pSt');el.textContent=message||'';el.className='p-st'+(type?' '+type:'');}
 function resetUI(){
   $('npTitle').textContent='재생 중인 파일 없음';
-  $('npArtist').textContent='음악 파일을 추가하세요';
+  $('npArtist').textContent='TimeLink TL 파일을 추가하세요';
   $('npType').style.display='none';
   $('ftlVal').textContent='— TL';$('ftlFill').style.width='0%';
   $('ftlRemain').textContent='서버에서 청취 사용량 정산';
@@ -512,11 +512,8 @@ async function addToPlaylist(paths,selectFirst=false){
   let firstNew=-1,failures=0;
   for(const fp of paths){
     if(!fp||_playlist.some(x=>x.fp===fp))continue;
-    if(/\.(mp3|wav|flac|m4a|aac|ogg|opus)$/i.test(fp)){
-      _playlist.push({fp,kind:'local',version:0,profile:'STANDARD-AUDIO',
-        hdr:{title:fp.split(/[\\/]/).pop().replace(/\.[^.]+$/,'')},icon:'🎶'});
-      if(firstNew<0)firstNew=_playlist.length-1;
-      continue;
+    if(typeof fp!=='string'||!TL_FILES.test(fp)){
+      failures++;setSt('❌ TimeLink TL 보호 파일만 추가할 수 있습니다.','err');continue;
     }
     setSt('⏳ 암호화 컨테이너 검증 중...');
     const parsed=await tlAPI.parseTLHeader(fp);
@@ -530,30 +527,25 @@ async function addToPlaylist(paths,selectFirst=false){
   }
   renderPL();
   if(firstNew>=0&&(_curIdx<0||selectFirst))selectTrack(firstNew);
-  if(firstNew>=0)setSt('✅ 음악 파일 '+(paths.length-failures)+'개 추가 · 일반 음원은 오프라인 청취 가능','ok');
+  if(firstNew>=0)setSt('✅ 검증된 TimeLink TL 파일 '+(paths.length-failures)+'개 추가','ok');
   else if(!failures)setSt('이미 재생 목록에 있는 파일입니다.','warn');
 }
 function selectTrack(index){
   if(index<0||index>=_playlist.length)return;
-  if(index!==_curIdx){
-    const audio=$('audioEl');audio.pause();audio.removeAttribute('src');audio.load();
-    _localLoadedPath=null;
-  }
   _curIdx=index;
   const t=_playlist[index];
   $('npTitle').textContent=t.hdr.title||'TLNK 보호 파일';
-  $('npArtist').textContent=t.kind==='local'?'내 PC · 오프라인 음악':t.version===5?'TL3 V5 · 온라인 서버 확인':(t.hdr.artist||'이전 TL 버전');
-  $('npType').textContent=t.kind==='local'?'🎶 로컬 오디오':t.version===5?'🔐 TL3 V5 AES-256-GCM':'🔒 TLNK v'+t.version+' · 구버전';
+  $('npArtist').textContent=t.version===5?'TL3 V5 · 온라인 서버 확인':(t.hdr.artist||'이전 TL 버전');
+  $('npType').textContent=t.version===5?'🔐 TL3 V5 AES-256-GCM':'🔒 TLNK v'+t.version+' · 구버전';
   $('npType').style.display='inline-block';
   $('videoArea').classList.remove('show');$('discEl').style.display='flex';
   $('rcBar').style.display='none';
   $('progFill').style.width='0%';$('timeEl').textContent='0:00';$('durEl').textContent='0:00';
   $('playBtn').textContent='▶';$('playBtn').classList.remove('on');
   $('ftlVal').textContent='— TL';$('ftlFill').style.width='0%';
-  $('ftlRemain').textContent=t.kind==='local'?'일반 음악 · TL 차감 없음':'TL 잔액·과금은 서버에서 확인';
-  $('ftlRate').textContent=t.kind==='local'?'오프라인 · 무료':'1 TL/초 · 실제 청취';
+  $('ftlRemain').textContent='TL 잔액·과금은 서버에서 확인';
+  $('ftlRate').textContent='1 TL/초 · 실제 청취';
   renderPL();
-  if(t.kind==='local'){setSt('일반 오디오 · 로그인 없이 재생 가능합니다.','ok');return;}
   void refreshOfflineAvailability();
   setSt(t.version===5?'TL3 V5 파일을 확인했습니다. 현재 파일은 오프라인 재생권이 발급되지 않은 서버 인증형 파일입니다. 로그인 없이 재생하려면 별도 오프라인 권한이 필요합니다.':'구버전 TL 파일입니다. V5로 다시 자산화한 후 청취하세요.','warn');
 }
@@ -580,56 +572,11 @@ tlAPI.onPlaybackWindowClosed(()=>{
   void syncMyTL();
 });
 
-function prettyTime(seconds){
-  if(!Number.isFinite(seconds)||seconds<0)return '0:00';
-  const t=Math.floor(seconds);return Math.floor(t/60)+':'+String(t%60).padStart(2,'0');
-}
-async function playLocalTrack(t){
-  const a=$('audioEl');
-  if(_localLoadedPath===t.fp&&a.src){
-    if(a.paused)await a.play();else a.pause();
-    return;
-  }
-  // Only one audio source may play at a time.
-  const stopped=await tlAPI.stopOnlineTrack();
-  if(stopped?.ok===false)throw Error('기존 TL3 재생창을 중지할 수 없습니다.');
-  if(_playlist[_curIdx]!==t)return;
-  const result=await tlAPI.openLocalAudio(t.fp);
-  if(_playlist[_curIdx]!==t)return;
-  if(!result?.ok)throw Error(result?.error||'음악을 열 수 없습니다.');
-  _localLoadedPath=t.fp;
-  a.src=result.url;a.currentTime=0;
-  await a.play();
-}
-function installLocalControls(){
-  const a=$('audioEl');
-  a.volume=0.8;
-  // Use operating-system volume controls; preserve the existing player layout.
-  a.addEventListener('loadedmetadata',()=>{$('durEl').textContent=prettyTime(a.duration);});
-  a.addEventListener('timeupdate',()=>{
-    $('timeEl').textContent=prettyTime(a.currentTime);
-    $('progFill').style.width=(Number.isFinite(a.duration)&&a.duration>0?Math.min(100,a.currentTime/a.duration*100):0)+'%';
-  });
-  a.addEventListener('play',()=>{
-    $('playBtn').textContent='Ⅱ';$('playBtn').classList.add('on');
-    setSt('로컬 음악 재생 중 · 인터넷 연결 불필요','ok');
-  });
-  a.addEventListener('pause',()=>{$('playBtn').textContent='▶';$('playBtn').classList.remove('on');});
-  a.addEventListener('ended',()=>{
-    if(_playlist[_curIdx+1]?.kind==='local')void playTrack(_curIdx+1);
-    else setSt('곡 재생이 끝났습니다.','ok');
-  });
-  a.addEventListener('error',()=>{if(_localLoadedPath)setSt('지원되지 않는 음악 파일 또는 코덱입니다.','err');});
-}
 async function playTrack(index){if(index!==_curIdx)selectTrack(index);return togglePlay();}
 async function togglePlay(){
   const t=_playlist[_curIdx];
   if(!t){setSt('먼저 TL3 파일을 추가하세요.','warn');return;}
   if(_opening)return;
-  if(t.kind==='local'){
-    try{await playLocalTrack(t);}catch(e){setSt('❌ '+e.message,'err');}
-    return;
-  }
   if(t.version!==5){
     setSt('구버전 TLNK 파일은 서버 라이선스 없이 재생할 수 없습니다. V5 음원으로 다시 등록해 주세요.','err');
     return;
@@ -650,9 +597,6 @@ async function togglePlay(){
   finally{_opening=false;$('playBtn').textContent='▶';}
 }
 async function stopPB(){
-  if(_playlist[_curIdx]?.kind==='local'){
-    const a=$('audioEl');a.pause();a.currentTime=0;setSt('음악 재생을 정지했습니다.','ok');return;
-  }
   if(_opening){setSt('재생 연결 중입니다. 연결된 창을 닫아 중지하세요.','warn');return;}
   try{
     const result=await tlAPI.stopOnlineTrack();
@@ -667,8 +611,6 @@ function removeTrack(index){
   if(index<0||index>=_playlist.length)return;
   const wasCurrent=index===_curIdx;
   if(wasCurrent){
-    const a=$('audioEl');
-    a.pause();a.removeAttribute('src');a.load();_localLoadedPath=null;
     void tlAPI.stopOnlineTrack();
     _curIdx=-1;
   }
@@ -678,19 +620,8 @@ function removeTrack(index){
   else if(_curIdx>index)_curIdx--;
   renderPL();
 }
-function seekTo(event){
-  const a=$('audioEl');
-  if(_playlist[_curIdx]?.kind==='local'&&a.duration>0){
-    const box=$('progTrack').getBoundingClientRect();
-    a.currentTime=Math.max(0,Math.min(a.duration,(event.clientX-box.left)/box.width*a.duration));
-  }else setSt('TL3 V5 탐색은 공식 재생창에서 이용하세요.','warn');
-}
-function seekRel(seconds){
-  const a=$('audioEl');
-  if(_playlist[_curIdx]?.kind==='local'&&a.duration>0)
-    a.currentTime=Math.max(0,Math.min(a.duration,a.currentTime+seconds));
-  else setSt('TL3 V5 탐색은 공식 재생창에서 이용하세요.','warn');
-}
+function seekTo(){setSt('TL3 V5 탐색은 공식 재생창에서 이용하세요.','warn');}
+function seekRel(){setSt('TL3 V5 탐색은 공식 재생창에서 이용하세요.','warn');}
 async function doRecharge(){
   const r=await tlAPI.openWallet();
   setSt(r?.ok?'공식 TimeLink 지갑에서 충전 후 이용하세요.':'❌ '+(r?.error||'지갑을 열 수 없습니다.'),r?.ok?'ok':'err');
@@ -712,18 +643,18 @@ function renderPL(){
     const symbol=document.createElement('div');symbol.className='pl-ico';symbol.textContent=t.icon;
     const info=document.createElement('div');info.className='pl-inf';
     const name=document.createElement('div');name.className='pl-name';name.textContent=t.hdr.title||'TL3 파일';
-    const sub=document.createElement('div');sub.className='pl-sub';sub.textContent=t.kind==='local'?'일반 오디오 · 오프라인 재생':('TLNK v'+t.version+' · '+(t.version===5?'서버 라이선스':'V5 재등록 필요'));
+    const sub=document.createElement('div');sub.className='pl-sub';sub.textContent='TLNK v'+t.version+' · '+(t.version===5?'서버 라이선스':'V5 재등록 필요');
     info.append(name,sub);
-    const value=document.createElement('div');value.className='pl-tl';value.textContent=t.kind==='local'?'▶ 로컬':'🔒 TL3';
+    const value=document.createElement('div');value.className='pl-tl';value.textContent='🔒 TL3';
     const del=document.createElement('button');del.className='pl-del';del.textContent='✕';del.title='목록에서 제거';del.onclick=e=>{e.stopPropagation();removeTrack(i);};
     row.append(number,symbol,info,value,del);holder.appendChild(row);
   });
 }
 function onDrop(e){
   e.preventDefault();$('dropOv').classList.remove('show');
-  const paths=Array.from(e.dataTransfer.files||[]).map(f=>f.path).filter(fp=>typeof fp==='string'&&/\.(tl|tl3|tl4|tlg|tld|tle|mp3|wav|flac|m4a|aac|ogg|opus)$/i.test(fp));
+  const paths=Array.from(e.dataTransfer.files||[]).map(f=>f.path).filter(fp=>typeof fp==='string'&&TL_FILES.test(fp));
   if(paths.length)addToPlaylist(paths,_curIdx<0);
-  else setSt('파일 경로를 확인할 수 없습니다. + 추가 버튼으로 선택해 주세요.','warn');
+  else setSt('TimeLink TL 파일만 추가할 수 있습니다. + 추가 버튼으로 선택해 주세요.','warn');
 }
 (async function init(){
   try{
@@ -732,16 +663,12 @@ function onDrop(e){
     if(_token&&json){_user=JSON.parse(json);updateUserBar();await syncMyTL();}
     else {_token=null;_user=null;updateUserBar();}
   }catch{_token=null;_user=null;updateUserBar();}
-  resetUI();installLocalControls();
+  resetUI();
   tlAPI.onTLFileOpen(fp=>addToPlaylist([fp],true));
   document.addEventListener('keydown',event=>{
     if(event.altKey||event.ctrlKey||event.metaKey||event.target?.matches?.('input,textarea,[contenteditable="true"]'))return;
     if(event.code==='Space'){
       event.preventDefault();void togglePlay();
-    }else if(event.code==='ArrowLeft' && _playlist[_curIdx]?.kind==='local'){
-      event.preventDefault();seekRel(-10);
-    }else if(event.code==='ArrowRight' && _playlist[_curIdx]?.kind==='local'){
-      event.preventDefault();seekRel(10);
     }
   });
   document.addEventListener('dragover',e=>{e.preventDefault();$('dropOv').classList.add('show');});
