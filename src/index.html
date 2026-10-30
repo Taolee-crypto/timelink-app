@@ -286,7 +286,7 @@ body{background:var(--bg);color:var(--t1);font-family:'DM Sans',sans-serif;
     <!-- 파일 TL 잔액 -->
     <div class="file-tl">
       <div class="ftl-top">
-        <span class="ftl-label">⚡ 파일 TL 잔액</span>
+        <span class="ftl-label">🔒 TL 서버 원장</span>
         <span class="ftl-val" id="ftlVal">— TL</span>
       </div>
       <div class="ftl-bar"><div class="ftl-fill" id="ftlFill" style="width:0%"></div></div>
@@ -299,9 +299,9 @@ body{background:var(--bg);color:var(--t1);font-family:'DM Sans',sans-serif;
     <!-- TL 충전 (항상 표시) -->
     <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0">
       <div id="rcBar" class="rc-bar" style="display:none;flex:1;margin-right:8px">
-        <span class="rc-txt">⚡ 파일 TL이 소진됐습니다</span>
+        <span class="rc-txt">🔒 온라인 지갑에서 TL 확인</span>
       </div>
-      <button class="rc-btn" onclick="doRecharge()" style="flex-shrink:0">⚡ 충전</button>
+      <button class="rc-btn" onclick="doRecharge()" style="flex-shrink:0">⚡ 지갑·충전</button>
     </div>
 
     <!-- 진행바 -->
@@ -335,7 +335,7 @@ body{background:var(--bg);color:var(--t1);font-family:'DM Sans',sans-serif;
     </div>
     <div class="pl-empty" id="plEmpty" onclick="addFiles()">
       <div class="pl-empty-ico">📂</div>
-      <div class="pl-empty-txt">.tl 파일을 드롭하거나<br>+ 추가 버튼을 클릭하세요<br><small style="opacity:.5">.tl3 오디오 · .tl4 영상</small></div>
+      <div class="pl-empty-txt">TL3 보호 파일을 드롭하거나<br>+ 추가 버튼을 클릭하세요<br><small style="opacity:.5">최신 TL3 V5 파일은 온라인으로 청취합니다.</small></div>
     </div>
     <div class="pl-list" id="plList" style="display:none"></div>
   </div>
@@ -344,383 +344,186 @@ body{background:var(--bg);color:var(--t1);font-family:'DM Sans',sans-serif;
 <audio id="audioEl" style="display:none"></audio>
 
 <script>
-const API = 'https://api.timelink.digital';
-
-// 상태
-let _token=null, _user=null;
-let _playlist=[], _curIdx=-1;
-let _playing=false, _isVideo=false;
-let _fp=null, _hdr=null, _shareId=null;
-let _fileTL=0, _fileTLMax=0, _tlPerSec=1;
-let _tick=null, _poc=0;
-
-// 미디어 엘리먼트
-const _audio = document.getElementById('audioEl');
-const _video = document.getElementById('videoEl');
-let _curEl   = _audio;
-
-// 캐시
-const _blobCache = new Map(); // fp → blobUrl
-const _preCache  = new Map(); // fp → Audio (미리 로드)
-
-// ── 초기화 ──
-(async function(){
-  _token = await tlAPI.storeGet('tl_token');
-  const uj = await tlAPI.storeGet('tl_user');
-  if(_token && uj){ _user=JSON.parse(uj); updateUserBar(); syncMyTL(); }
-
-  tlAPI.onTLFileOpen(fp => addToPlaylist([fp], true));
-
-  // 전체 드래그
-  document.addEventListener('dragover', e=>{e.preventDefault(); document.getElementById('dropOv').classList.add('show');});
-  document.addEventListener('dragleave', e=>{ if(!e.relatedTarget) document.getElementById('dropOv').classList.remove('show');});
-})();
-
-// ── 유저 바 ──
+// TimeLink TL3 V5 has a server-controlled session license and TL ledger.
+// This desktop window inspects files only; official web playback handles
+// decryption, rights, metering and settlement. No offline TL state is minted.
+let _token=null,_user=null,_playlist=[],_curIdx=-1,_opening=false;
+const $=id=>document.getElementById(id);
+function setSt(message,type=''){const el=$('pSt');el.textContent=message||'';el.className='p-st'+(type?' '+type:'');}
+function resetUI(){
+  $('npTitle').textContent='재생 중인 파일 없음';
+  $('npArtist').textContent='.tl3 파일을 추가하세요';
+  $('npType').style.display='none';
+  $('ftlVal').textContent='— TL';$('ftlFill').style.width='0%';
+  $('ftlRemain').textContent='서버에서 청취 사용량 정산';
+  $('ftlRate').textContent='1 TL/초 · 실제 청취';
+  $('timeEl').textContent='0:00';$('durEl').textContent='0:00';
+  $('progFill').style.width='0%';
+  $('videoArea').classList.remove('show');
+  $('discEl').style.display='flex';
+  $('playBtn').textContent='▶';$('playBtn').classList.remove('on');
+}
 function updateUserBar(){
-  const on = !!_user;
-  document.getElementById('ubInfo').textContent = on ? (_user.email||'로그인됨') : '로그인하면 내 TL 잔액이 표시됩니다';
-  document.getElementById('ubTLPill').style.display = on ? 'flex' : 'none';
-  document.getElementById('ubLoginBtn').style.display = on ? 'none' : '';
-  document.getElementById('ubLogoutBtn').style.display = on ? '' : 'none';
+  const on=!!(_token&&_user);
+  $('ubInfo').textContent=on?(_user.email||'로그인됨'):'로그인하면 내 TL 잔액이 표시됩니다';
+  $('ubTLPill').style.display=on?'flex':'none';
+  $('ubLoginBtn').style.display=on?'none':'';
+  $('ubLogoutBtn').style.display=on?'':'none';
+  if(!on)$('ubTLVal').textContent='— TL';
 }
 async function syncMyTL(){
-  if(!_token) return;
-  const r = await tlAPI.getMyTL({token:_token});
-  if(r.ok) document.getElementById('ubTLVal').textContent = Number(r.tl).toLocaleString()+' TL';
-}
-function toggleLoginPanel(){
-  document.getElementById('loginPanel').classList.toggle('show');
-}
-async function doLogin(){
-  const email = document.getElementById('lpEmail').value.trim();
-  const pw    = document.getElementById('lpPw').value;
-  if(!email||!pw){ document.getElementById('lpErr').textContent='이메일과 비밀번호를 입력하세요'; return; }
-  const btn = document.getElementById('lpBtn');
-  btn.disabled=true; btn.textContent='연결 중...';
-  document.getElementById('lpErr').textContent='';
+  if(!_token)return;
+  const current=_token;
   try{
-    const d = await tlAPI.login({email,password:pw});
-    if(!d.ok) throw new Error(d.error||'로그인 실패');
-    _token=d.token; _user=d.user;
+    const r=await tlAPI.getMyTL({token:current});
+    if(current!==_token)return;
+    $('ubTLVal').textContent=r.ok&&Number.isFinite(Number(r.tl))
+      ?Number(r.tl).toLocaleString('ko-KR')+' TL':'조회 실패';
+  }catch{$('ubTLVal').textContent='조회 실패';}
+}
+function toggleLoginPanel(){$('loginPanel').classList.toggle('show');}
+async function doLogin(){
+  const email=$('lpEmail').value.trim(),password=$('lpPw').value;
+  if(!email||!password){$('lpErr').textContent='이메일과 비밀번호를 입력하세요.';return;}
+  const btn=$('lpBtn');btn.disabled=true;btn.textContent='연결 중...';$('lpErr').textContent='';
+  try{
+    const response=await tlAPI.login({email,password});
+    if(!response.ok||!response.token||!response.user)throw Error(response.error||'서버 로그인 정보를 확인할 수 없습니다.');
+    _token=response.token;_user=response.user;
     await tlAPI.storeSet('tl_token',_token);
     await tlAPI.storeSet('tl_user',JSON.stringify(_user));
-    updateUserBar(); syncMyTL();
-    document.getElementById('loginPanel').classList.remove('show');
-  }catch(e){ document.getElementById('lpErr').textContent='❌ '+e.message; }
-  btn.disabled=false; btn.textContent='로그인';
+    $('lpPw').value='';$('loginPanel').classList.remove('show');
+    updateUserBar();await syncMyTL();
+  }catch(e){$('lpErr').textContent='❌ '+e.message;}
+  finally{btn.disabled=false;btn.textContent='로그인';}
 }
 function doLogout(){
-  _token=null; _user=null;
-  tlAPI.storeSet('tl_token',null); tlAPI.storeSet('tl_user',null);
-  updateUserBar();
+  _token=null;_user=null;
+  tlAPI.storeSet('tl_token',null);tlAPI.storeSet('tl_user',null);
+  updateUserBar();setSt('로그아웃했습니다. 암호화 음원 재생은 다시 로그인해야 합니다.','warn');
 }
-
-// ── 파일 추가 ──
 async function addFiles(){
-  const fps = await tlAPI.openFileDialog();
-  if(fps&&fps.length) addToPlaylist(fps, _curIdx===-1);
+  const paths=await tlAPI.openFileDialog();
+  if(paths?.length)await addToPlaylist(paths,true);
 }
-
-async function addToPlaylist(fps, autoPlay=false){
-  if(!fps||!fps.length) return;
-  let firstNew=null;
-  for(const fp of fps){
-    if(_playlist.find(p=>p.fp===fp)) continue;
-    setSt('⏳ 파일 읽는 중...');
-    const p = await tlAPI.parseTLHeader(fp);
-    if(p.error){ setSt('❌ '+p.error,'err'); continue; }
-    const hdr = p.header||{};
-    const ext = fp.split('.').pop()?.toLowerCase()||'';
-    const isV = (hdr.fileType||'').toLowerCase().startsWith('video')||ext==='tl4';
-    const track = {
-      fp, hdr, isVideo:isV,
-      tl_balance: Number(hdr.tl_balance||0),
-      tl_per_sec: Number(hdr.tl_per_sec||1),
-      tl_max:     Number(hdr.tl_max||hdr.file_tl||hdr.tl_balance||0),
-      shareId:    hdr.shareId||null,
-      icon: isV?'🎬':ext==='tlg'?'🖼️':ext==='tld'?'📄':'🎵',
-      decrypted: null, decrypting: false,
-    };
-    _playlist.push(track);
-    if(firstNew===null) firstNew=_playlist.length-1;
-
-    // 백그라운드 복호화 + Blob 미리 생성
-    const idx = _playlist.length-1;
-    track.decrypting=true;
-    tlAPI.decryptFile(fp).then(res=>{
-      const t=_playlist[idx]; if(!t) return;
-      t.decrypted=res.decrypted; t.decrypting=false;
-      if(res.decrypted&&!_blobCache.has(fp)){
-        try{
-          const mime=t.hdr?.fileType||(t.isVideo?'video/mp4':'audio/mpeg');
-          const bytes=Uint8Array.from(atob(res.decrypted),c=>c.charCodeAt(0));
-          const url=URL.createObjectURL(new Blob([bytes],{type:mime}));
-          _blobCache.set(fp,url);
-          // 오디오만 Audio 엘리먼트 미리 로드
-          if(!t.isVideo&&!_preCache.has(fp)){
-            const a=new Audio(); a.preload='auto'; a.src=url;
-            _preCache.set(fp,a);
-          }
-        }catch(e){}
-      }
-      renderPL();
-    });
+async function addToPlaylist(paths,selectFirst=false){
+  if(!Array.isArray(paths))return;
+  let firstNew=-1,failures=0;
+  for(const fp of paths){
+    if(!fp||_playlist.some(x=>x.fp===fp))continue;
+    setSt('⏳ 암호화 컨테이너 검증 중...');
+    const parsed=await tlAPI.parseTLHeader(fp);
+    if(!parsed?.ok){failures++;setSt('❌ '+(parsed?.error||'파일을 열 수 없습니다.'),'err');continue;}
+    const t={fp,version:parsed.version,profile:parsed.profile,hdr:parsed.header||{},
+      containerSha256:parsed.container_sha256||null,
+      isVideo:parsed.version!==5&&/\.(?:tl4)$/i.test(fp),
+      icon:parsed.version===5?'🎵':'🔒'};
+    _playlist.push(t);
+    if(firstNew<0)firstNew=_playlist.length-1;
   }
   renderPL();
-  if(firstNew!==null){
-    setSt('✅ '+_playlist.length+'곡','ok');
-    if(autoPlay||_curIdx===-1) playTrack(firstNew);
-  }
+  if(firstNew>=0&&(_curIdx<0||selectFirst))selectTrack(firstNew);
+  if(firstNew>=0)setSt('✅ 보호 파일 '+(paths.length-failures)+'개 확인 · ▶ 온라인 재생','ok');
+  else if(!failures)setSt('이미 재생 목록에 있는 파일입니다.','warn');
 }
-
-// ── 트랙 재생 ──
-async function playTrack(idx){
-  if(idx<0||idx>=_playlist.length) return;
-  stopPB(false);
-  _curIdx=idx;
-  const t=_playlist[idx];
-  _fp=t.fp; _hdr=t.hdr; _shareId=t.shareId;
-  _fileTL=t.tl_balance; _fileTLMax=t.tl_max||t.tl_balance||3600;
-  _tlPerSec=t.tl_per_sec; _isVideo=t.isVideo;
-
-  // UI
-  document.getElementById('npTitle').textContent  = _hdr?.title||'제목 없음';
-  document.getElementById('npArtist').textContent = _hdr?.artist||_hdr?.creatorName||'—';
-  const typeEl=document.getElementById('npType');
-  typeEl.textContent=_isVideo?'🎬 TL4 영상':'🎵 TL3 오디오';
-  typeEl.style.display='inline-block';
-
-  // 비디오/오디오 영역 전환
-  const va=document.getElementById('videoArea');
-  const disc=document.getElementById('discEl');
-  if(_isVideo){ va.classList.add('show'); disc.style.display='none'; }
-  else { va.classList.remove('show'); disc.style.display='flex'; }
-
-  updateFTL(); renderPL();
-
-  if(_fileTL<=0){
-    document.getElementById('rcBar').style.display='flex';
-    setSt('⚡ 파일 TL 소진 — 재충전 후 재생하세요','warn');
+function selectTrack(index){
+  if(index<0||index>=_playlist.length)return;
+  _curIdx=index;
+  const t=_playlist[index];
+  $('npTitle').textContent=t.hdr.title||'TLNK 보호 파일';
+  $('npArtist').textContent=t.version===5?'TL3 V5 · 온라인 서버 확인':(t.hdr.artist||'이전 TL 버전');
+  $('npType').textContent=t.version===5?'🔐 TL3 V5 AES-256-GCM':'🔒 TLNK v'+t.version+' · 구버전';
+  $('npType').style.display='inline-block';
+  $('videoArea').classList.remove('show');$('discEl').style.display='flex';
+  $('rcBar').style.display='none';
+  $('progFill').style.width='0%';$('timeEl').textContent='0:00';$('durEl').textContent='0:00';
+  $('playBtn').textContent='▶';$('playBtn').classList.remove('on');
+  $('ftlVal').textContent='— TL';$('ftlFill').style.width='0%';
+  $('ftlRemain').textContent='TL 잔액·과금은 서버에서 확인';
+  $('ftlRate').textContent='1 TL/초 · 실제 청취';
+  renderPL();
+  setSt(t.version===5?'▶ 재생을 누르면 공식 온라인 플레이어를 엽니다.':'구버전 TL 파일입니다. V5로 다시 자산화한 후 청취하세요.','warn');
+}
+async function playTrack(index){selectTrack(index);return togglePlay();}
+async function togglePlay(){
+  const t=_playlist[_curIdx];
+  if(!t){setSt('먼저 TL3 파일을 추가하세요.','warn');return;}
+  if(_opening)return;
+  if(t.version!==5){
+    setSt('구버전 TLNK 파일은 서버 라이선스 없이 재생할 수 없습니다. V5 음원으로 다시 등록해 주세요.','err');
     return;
   }
-  document.getElementById('rcBar').style.display='none';
-  await startPlay(t);
-}
-
-async function startPlay(t){
-  document.getElementById('playBtn').textContent='⏳';
-
-  // Blob URL 확인 (캐시 우선)
-  let url=_blobCache.get(t.fp)||null;
-
-  if(!url){
-    // 복호화 대기
-    if(t.decrypting){
-      setSt('⏳ 복호화 준비 중...','warn');
-      for(let i=0;i<300;i++){
-        await new Promise(r=>setTimeout(r,100));
-        if(_blobCache.has(t.fp)){url=_blobCache.get(t.fp);break;}
-        if(!t.decrypting) break;
-      }
-    }
-    // 직접 복호화
-    if(!url){
-      setSt('⏳ 복호화 중...','warn');
-      const res=await tlAPI.decryptFile(t.fp);
-      if(!res.decrypted){
-        setSt('❌ 복호화 실패 — 파일을 다시 다운로드하세요','err');
-        document.getElementById('playBtn').textContent='▶'; return;
-      }
-      t.decrypted=res.decrypted;
-      const mime=t.hdr?.fileType||(_isVideo?'video/mp4':'audio/mpeg');
-      const bytes=Uint8Array.from(atob(res.decrypted),c=>c.charCodeAt(0));
-      url=URL.createObjectURL(new Blob([bytes],{type:mime}));
-      _blobCache.set(t.fp,url);
-    }
-  }
-
-  setSt('');
+  if(!_token){setSt('먼저 로그인해 주세요. 온라인 재생도 회원 인증이 필요합니다.','warn');$('loginPanel').classList.add('show');return;}
+  if(!t.containerSha256){setSt('파일의 무결성 해시를 확인할 수 없습니다. 다시 다운로드해 주세요.','err');return;}
+  const current=_curIdx,_tok=_token;
+  _opening=true;$('playBtn').textContent='⏳';
+  setSt('⏳ 서버에서 봉인 자산과 권리 상태 확인 중...');
   try{
-    if(_isVideo){
-      _curEl=_video;
-    } else {
-      // 미리 로드된 Audio 있으면 사용
-      const pre=_preCache.get(t.fp);
-      _curEl = (pre&&pre.readyState>=2) ? pre : _audio;
-      if(_curEl===_audio) _audio.src=url;
-    }
-    if(_isVideo) _video.src=url;
-
-    _curEl.ontimeupdate=onTU;
-    _curEl.onended=()=>nextTrack();
-    _curEl.onerror=()=>{setSt('❌ 재생 오류','err');document.getElementById('playBtn').textContent='▶';};
-    await _curEl.play();
-
-    _playing=true;
-    document.getElementById('playBtn').textContent='⏸';
-    document.getElementById('playBtn').classList.add('on');
-    if(!_isVideo){ document.getElementById('discEl').classList.add('spin'); document.getElementById('eqEl').classList.add('on'); }
-    setSt('▶ 재생 중 · '+_tlPerSec+' TL/s','ok');
-    startTick(); renderPL();
-  }catch(e){
-    setSt('❌ '+e.message,'err');
-    document.getElementById('playBtn').textContent='▶';
-  }
+    const r=await tlAPI.openOnlineTrack({sha256:t.containerSha256,token:_tok});
+    if(current!==_curIdx||_tok!==_token)return;
+    if(!r?.ok)throw Error(r?.error||'공개된 암호화 자산과 일치하지 않습니다.');
+    setSt('✅ 공식 TimeLink 재생 페이지를 열었습니다. 실제 청취·TL 정산은 해당 페이지에서 진행됩니다.','ok');
+    await syncMyTL();
+  }catch(e){if(current===_curIdx)setSt('❌ '+e.message,'err');}
+  finally{_opening=false;$('playBtn').textContent='▶';}
 }
-
-async function togglePlay(){
-  if(!_fp){setSt('파일을 추가하세요','warn');return;}
-  if(_playing){stopPB();return;}
-  if(_fileTL<=0){document.getElementById('rcBar').style.display='flex';setSt('⚡ TL 소진 — 재충전하세요','err');return;}
-  const t=_playlist[_curIdx];
-  if(t) await startPlay(t);
-}
-
-function stopPB(clearSt=true){
-  _playing=false;
-  _audio.pause(); _audio.removeAttribute('src'); _audio.load();
-  _video.pause(); _video.removeAttribute('src'); _video.load();
-  if(_curEl&&_curEl!==_audio&&_curEl!==_video){ _curEl.pause(); _curEl.currentTime=0; }
-  _curEl=_audio;
-  document.getElementById('playBtn').textContent='▶';
-  document.getElementById('playBtn').classList.remove('on');
-  document.getElementById('discEl').classList.remove('spin');
-  document.getElementById('eqEl').classList.remove('on');
-  document.getElementById('progFill').style.width='0%';
-  document.getElementById('timeEl').textContent='0:00';
-  if(clearSt) setSt('');
-  flushPoc(); stopTick(); renderPL();
-}
-
-function prevTrack(){ if(_curIdx>0) playTrack(_curIdx-1); }
-function nextTrack(){ if(_curIdx<_playlist.length-1) playTrack(_curIdx+1); else stopPB(); }
-
-function removeTrack(idx){
-  const fp=_playlist[idx]?.fp;
-  if(idx===_curIdx){stopPB();_curIdx=-1;_fp=null;}
-  else if(idx<_curIdx) _curIdx--;
-  _playlist.splice(idx,1);
-  if(fp){ if(_blobCache.has(fp)){URL.revokeObjectURL(_blobCache.get(fp));_blobCache.delete(fp);} if(_preCache.has(fp)){const a=_preCache.get(fp);a.pause();a.src='';_preCache.delete(fp);} }
+function stopPB(){_opening=false;setSt('파일 재생은 온라인 페이지에서 관리합니다.','warn');}
+function prevTrack(){if(_curIdx>0)selectTrack(_curIdx-1);}
+function nextTrack(){if(_curIdx+1<_playlist.length)selectTrack(_curIdx+1);}
+function removeTrack(index){
+  if(index<0||index>=_playlist.length)return;
+  _playlist.splice(index,1);
+  if(!_playlist.length){_curIdx=-1;resetUI();}
+  else if(_curIdx===index)selectTrack(Math.min(index,_playlist.length-1));
+  else if(_curIdx>index)_curIdx--;
   renderPL();
-  if(_playlist.length===0) resetUI();
 }
-
-// ── TL 차감 ──
-function startTick(){
-  stopTick();
-  _tick=setInterval(async()=>{
-    if(!_playing) return;
-    _fileTL=Math.max(0,_fileTL-_tlPerSec);
-    if(_fp) await tlAPI.updateTLBalance({filePath:_fp,newBalance:_fileTL});
-    if(_playlist[_curIdx]) _playlist[_curIdx].tl_balance=_fileTL;
-    updateFTL(); _poc+=_tlPerSec;
-    if(_fileTL<=0){stopPB(false);document.getElementById('rcBar').style.display='flex';setSt('⚡ TL 소진 — 재충전 후 계속 재생하세요','err');}
-    if(_poc>=10) flushPoc();
-  },1000);
-}
-function stopTick(){if(_tick){clearInterval(_tick);_tick=null;}}
-async function flushPoc(){
-  if(_poc<=0||!_shareId||!_token) return;
-  const s=_poc;_poc=0;
-  try{await tlAPI.recordPOC({shareId:_shareId,token:_token,seconds:s,deduct_rate:_tlPerSec});}catch(e){}
-}
-
-// ── 재충전 ──
+function seekTo(){setSt('구간 이동은 공식 온라인 플레이어에서 이용하세요.','warn');}
+function seekRel(){setSt('구간 이동은 공식 온라인 플레이어에서 이용하세요.','warn');}
 async function doRecharge(){
-  const amount=_fileTLMax||3600;
-  setSt('⏳ 재충전 중...');
-  try{
-    const res=await tlAPI.rechargeTL({filePath:_fp,shareId:_shareId||null,token:_token||null,amount});
-    if(res.error) throw new Error(res.error);
-    _fileTL=res.new_balance; _fileTLMax=Math.max(_fileTLMax||amount,_fileTL);
-    if(_playlist[_curIdx]){_playlist[_curIdx].tl_balance=_fileTL;_playlist[_curIdx].tl_max=_fileTLMax;}
-    updateFTL(); document.getElementById('rcBar').style.display='none';
-    setSt(res.local_only?'✅ '+amount.toLocaleString()+' TL 충전 완료':'✅ '+amount.toLocaleString()+' TL 재충전 완료!','ok');
-    renderPL(); syncMyTL();
-    const t=_playlist[_curIdx]; if(t&&!_playing) await startPlay(t);
-  }catch(e){setSt('❌ 재충전 실패: '+e.message,'err');}
+  const r=await tlAPI.openWallet();
+  setSt(r?.ok?'공식 TimeLink 지갑에서 충전 후 이용하세요.':'❌ '+(r?.error||'지갑을 열 수 없습니다.'),r?.ok?'ok':'err');
 }
-
-// ── TL 표시 ──
-function updateFTL(){
-  const pct=_fileTLMax>0?Math.max(0,Math.min(100,(_fileTL/_fileTLMax)*100)):0;
-  document.getElementById('ftlVal').textContent=Number(_fileTL).toLocaleString()+' TL';
-  document.getElementById('ftlFill').style.width=pct+'%';
-  document.getElementById('ftlRate').textContent=_tlPerSec+' TL/s';
-  const rem=_tlPerSec>0?Math.floor(_fileTL/_tlPerSec):0;
-  document.getElementById('ftlRemain').textContent='남은 재생: '+fmt(rem);
-  const f=document.getElementById('ftlFill');
-  if(pct<10)f.style.background='var(--rose)';
-  else if(pct<30)f.style.background='linear-gradient(90deg,var(--rose),var(--gold))';
-  else f.style.background='linear-gradient(90deg,var(--rose),var(--gold),var(--mint))';
-}
-
-// ── 진행바 ──
-function onTU(){
-  const dur=_curEl.duration||_hdr?.duration||1;
-  const cur=_curEl.currentTime||0;
-  document.getElementById('progFill').style.width=(cur/dur*100).toFixed(1)+'%';
-  document.getElementById('timeEl').textContent=fmt(Math.floor(cur));
-  document.getElementById('durEl').textContent=fmt(Math.floor(dur));
-}
-function seekTo(e){
-  const bar=document.getElementById('progTrack');
-  _curEl.currentTime=(e.offsetX/bar.offsetWidth)*(_curEl.duration||0);
-}
-function seekRel(s){_curEl.currentTime=Math.max(0,(_curEl.currentTime||0)+s);}
-
-// ── 플레이리스트 렌더링 ──
 function renderPL(){
-  const empty=document.getElementById('plEmpty'),list=document.getElementById('plList');
-  document.getElementById('plCnt').textContent=_playlist.length+'곡';
-  if(_playlist.length===0){empty.style.display='flex';list.style.display='none';return;}
-  empty.style.display='none';list.style.display='block';
-  list.innerHTML=_playlist.map((t,i)=>{
-    const cur=i===_curIdx,tl=Number(t.tl_balance||0);
-    return `<div class="pl-item${cur?' cur':''}" onclick="playTrack(${i})">
-      <div class="pl-num">${cur&&_playing?'▶':(i+1)}</div>
-      <div class="pl-ico">${t.icon}</div>
-      <div class="pl-inf">
-        <div class="pl-name">${esc(t.hdr?.title||'제목 없음')}</div>
-        <div class="pl-sub">${esc(t.hdr?.artist||t.hdr?.creatorName||'—')}${t.decrypting?' · ⏳':''}</div>
-      </div>
-      <div class="pl-tl">${tl>0
-        ?`<div class="pl-tl-v">${Number(tl).toLocaleString()} TL</div>`
-        :`<div class="pl-tl-e">TL 없음</div>`}</div>
-      <button class="pl-del" onclick="event.stopPropagation();removeTrack(${i})">✕</button>
-    </div>`;
-  }).join('');
+  const empty=$('plEmpty'),holder=$('plList');
+  $('plCnt').textContent=_playlist.length+'곡';
+  empty.style.display=_playlist.length?'none':'flex';
+  holder.style.display=_playlist.length?'block':'none';
+  holder.replaceChildren();
+  _playlist.forEach((t,i)=>{
+    const row=document.createElement('div');row.className='pl-item'+(i===_curIdx?' cur':'');
+    row.setAttribute('role','button');row.tabIndex=0;
+    row.onclick=()=>playTrack(i);
+    row.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();playTrack(i);}};
+    const number=document.createElement('div');number.className='pl-num';number.textContent=String(i+1);
+    const symbol=document.createElement('div');symbol.className='pl-ico';symbol.textContent=t.icon;
+    const info=document.createElement('div');info.className='pl-inf';
+    const name=document.createElement('div');name.className='pl-name';name.textContent=t.hdr.title||'TL3 파일';
+    const sub=document.createElement('div');sub.className='pl-sub';sub.textContent='TLNK v'+t.version+' · '+(t.version===5?'서버 라이선스':'V5 재등록 필요');
+    info.append(name,sub);
+    const value=document.createElement('div');value.className='pl-tl';value.textContent='🔒 온라인';
+    const del=document.createElement('button');del.className='pl-del';del.textContent='✕';del.title='목록에서 제거';del.onclick=e=>{e.stopPropagation();removeTrack(i);};
+    row.append(number,symbol,info,value,del);holder.appendChild(row);
+  });
 }
-
-function resetUI(){
-  document.getElementById('npTitle').textContent='재생 중인 파일 없음';
-  document.getElementById('npArtist').textContent='.tl 파일을 추가하세요';
-  document.getElementById('npType').style.display='none';
-  document.getElementById('ftlVal').textContent='— TL';
-  document.getElementById('ftlFill').style.width='0%';
-  document.getElementById('ftlRemain').textContent='남은 재생: —';
-  document.getElementById('ftlRate').textContent='— TL/s';
-  document.getElementById('progFill').style.width='0%';
-  document.getElementById('timeEl').textContent='0:00';
-  document.getElementById('durEl').textContent='0:00';
-  document.getElementById('videoArea').classList.remove('show');
-  document.getElementById('discEl').style.display='flex';
-}
-
-// ── 드롭 ──
 function onDrop(e){
-  e.preventDefault();
-  document.getElementById('dropOv').classList.remove('show');
-  const fps=Array.from(e.dataTransfer.files)
-    .filter(f=>/\.(tl|tl3|tl4|tlg|tld|tle)$/i.test(f.name)).map(f=>f.path);
-  if(fps.length) addToPlaylist(fps, _curIdx===-1);
+  e.preventDefault();$('dropOv').classList.remove('show');
+  const paths=Array.from(e.dataTransfer.files||[]).map(f=>f.path).filter(fp=>typeof fp==='string'&&/\.(tl|tl3|tl4|tlg|tld|tle)$/i.test(fp));
+  if(paths.length)addToPlaylist(paths,_curIdx<0);
+  else setSt('파일 경로를 확인할 수 없습니다. + 추가 버튼으로 선택해 주세요.','warn');
 }
-
-// ── 유틸 ──
-function fmt(s){return Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');}
-function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-function setSt(msg,type){const el=document.getElementById('pSt');if(!el)return;el.textContent=msg;el.className='p-st'+(type?' '+type:'');}
+(async function init(){
+  try{
+    _token=await tlAPI.storeGet('tl_token');
+    const json=await tlAPI.storeGet('tl_user');
+    if(_token&&json){_user=JSON.parse(json);updateUserBar();await syncMyTL();}
+    else {_token=null;_user=null;updateUserBar();}
+  }catch{_token=null;_user=null;updateUserBar();}
+  resetUI();
+  tlAPI.onTLFileOpen(fp=>addToPlaylist([fp],true));
+  document.addEventListener('dragover',e=>{e.preventDefault();$('dropOv').classList.add('show');});
+  document.addEventListener('dragleave',e=>{if(!e.relatedTarget)$('dropOv').classList.remove('show');});
+})();
 </script>
 </body>
 </html>
