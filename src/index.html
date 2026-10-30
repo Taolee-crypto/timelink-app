@@ -218,6 +218,53 @@ body{background:var(--bg);color:var(--t1);font-family:'DM Sans',sans-serif;
 ::-webkit-scrollbar{width:3px}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:rgba(124,58,237,.2);border-radius:2px}
+
+/* TimeLink Professional Player · responsive library-first workspace */
+:root{--bg:#090b12;--bg2:#121723;--bg3:#1b2231;--purple:#7867ec;--purple2:#a99bff;--mint:#45ddbd;--t1:#edf2fb;--t2:#a6b3c9;--t3:#7b8aa3;--bd:rgba(178,193,222,.14)}
+body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:radial-gradient(ellipse at 70% -15%,#282041 0%,transparent 55%),var(--bg)}
+.titlebar{height:48px;padding:0 20px;background:rgba(14,18,29,.92)}
+.tb-name{font-size:11px;letter-spacing:.12em;color:var(--t1)}
+.tb-ver{font-size:10px}
+.user-bar{min-height:48px;padding:8px 20px}
+.ub-info{font-size:12px;color:var(--t2)}
+.ub-tl-val{font-size:12px}
+.main{min-height:0}
+.now-playing{padding:8px 8px 12px;background:linear-gradient(155deg,rgba(40,44,71,.6),rgba(13,17,27,.93))}
+.cover-row{padding:16px 16px 12px;gap:16px}
+.disc{width:82px;height:82px;border-color:rgba(169,155,255,.34);box-shadow:0 10px 34px #0005}
+.disc-c{width:26px;height:26px;font-size:8px}
+.np-title{font-size:18px;line-height:1.4}
+.np-artist{font-size:12px;color:var(--t2)}
+.np-type{font-size:10px;padding:5px 8px}
+.file-tl{padding:12px 14px;border-radius:12px;background:#131b29;border:1px solid var(--bd)}
+.ftl-label{font-size:11px;color:var(--t2)}
+.ftl-val{font-size:15px}
+.ftl-info{font-size:10px}
+.prog{padding:14px 16px 4px}
+.prog-track{height:6px;border-radius:8px}
+.time-row{font-size:11px;margin-top:9px}
+.controls{gap:14px;padding:12px}
+.ctrl{width:42px;height:42px;font-size:14px}
+.ctrl.play{width:58px;height:58px}
+.p-st{font-size:11px;line-height:1.6;min-height:30px;padding:6px 16px}
+.pl-wrap{border-top:1px solid var(--bd);background:rgba(12,16,26,.92)}
+.pl-head{min-height:52px;padding:10px 16px;gap:12px}
+.pl-ttl{font-size:11px;color:var(--t1);letter-spacing:.12em}
+.pl-cnt{font-size:11px}
+.pl-add{font-size:12px;padding:8px 13px;border-radius:8px}
+.pl-search{margin:10px 16px 8px;width:calc(100% - 32px);background:#141c2b;color:var(--t1);border:1px solid var(--bd);border-radius:10px;padding:11px 12px;font-size:12px;outline:none}
+.pl-search:focus{border-color:var(--purple2)}
+.pl-item{padding:12px 16px;gap:12px;min-height:60px}
+.pl-item.cur{background:rgba(120,103,236,.15)}
+.pl-ico{width:38px;height:38px;font-size:17px}
+.pl-name{font-size:13px}.pl-sub{font-size:10px;margin-top:4px}
+.pl-tl{font-size:10px;color:var(--mint)}
+.pl-empty-txt{font-size:13px}
+.player-info-strip{padding:8px 16px;color:var(--t2);font-size:10px;line-height:1.55;border-bottom:1px solid var(--bd)}
+.player-info-strip strong{color:var(--mint)}
+button:focus-visible,[role="button"]:focus-visible{outline:2px solid var(--mint);outline-offset:3px}
+@media(min-width:800px){.now-playing{padding:12px 24px}.pl-head{padding:12px 24px}.pl-search{margin-left:24px;margin-right:24px;width:calc(100% - 48px)}.pl-item{padding-left:24px;padding-right:24px}}
+@media(max-width:460px){.np-title{font-size:16px}.disc{width:64px;height:64px}.controls{gap:8px}}
 </style>
 </head>
 <body>
@@ -337,6 +384,8 @@ body{background:var(--bg);color:var(--t1);font-family:'DM Sans',sans-serif;
       <div class="pl-empty-ico">📂</div>
       <div class="pl-empty-txt">TL3 보호 파일을 드롭하거나<br>+ 추가 버튼을 클릭하세요<br><small style="opacity:.5">최신 TL3 V5 파일은 온라인으로 청취합니다.</small></div>
     </div>
+    <input class="pl-search" id="plSearch" type="search" placeholder="곡 제목 · 파일 검색" aria-label="재생목록 검색" oninput="renderPL()">
+    <div class="player-info-strip">TL3 V5 보호 콘텐츠 · <strong>실제 청취 1초당 1 TL</strong> · 미확인 파일 잔액은 충전으로 표시하지 않습니다.</div>
     <div class="pl-list" id="plList" style="display:none"></div>
   </div>
 </div>
@@ -490,7 +539,9 @@ function renderPL(){
   empty.style.display=_playlist.length?'none':'flex';
   holder.style.display=_playlist.length?'block':'none';
   holder.replaceChildren();
+  const filter=String($('plSearch')?.value||'').trim().toLocaleLowerCase();
   _playlist.forEach((t,i)=>{
+    if(filter&&!String(t.hdr.title||t.fp||'').toLocaleLowerCase().includes(filter))return;
     const row=document.createElement('div');row.className='pl-item'+(i===_curIdx?' cur':'');
     row.setAttribute('role','button');row.tabIndex=0;
     row.onclick=()=>playTrack(i);
