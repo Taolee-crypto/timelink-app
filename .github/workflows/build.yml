@@ -96,9 +96,8 @@ jobs:
             exit 0
           fi
           # A tag without an existing release must point to the exact verified source.
-          EXISTING_SHA="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq '.object.sha // empty' 2>/dev/null || true)"
-          # A missing tag may yield the literal 'null' from some gh API responses.
-          if [ "$EXISTING_SHA" = "null" ]; then EXISTING_SHA=""; fi
+          EXISTING_SHA="$(git ls-remote --tags origin "refs/tags/$TAG" | awk '{print $1}')"
+          # An absent tag yields an empty string; never parse a 404 API payload as a SHA.
           if [ -n "$EXISTING_SHA" ] && [ "$EXISTING_SHA" != "$GITHUB_SHA" ]; then
             echo "::error::Tag points to a different commit; refusing to retarget."
             exit 1

@@ -1,0 +1,64 @@
+name: Publish verified TimeLink Player 1.1.5 installers
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/publish-v115-verified.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: timelink-player-immutable-publish
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download exactly the previously verified 1.1.5 build outputs
+        uses: actions/download-artifact@v4
+        with:
+          run-id: 41092345118
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: Taolee-crypto/timelink-app
+          pattern: timelink-player-*-97f6427f5b8e505a45cc1d450cb6e277c8d015cc
+          merge-multiple: true
+          path: release-assets
+      - name: Check exact version, artifact names and original build provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(node -p "require('./package.json').version")" = "1.1.5"
+          test -s release-assets/TimeLink-Player-Setup-1.1.5.exe
+          test -s release-assets/TimeLink-Player-1.1.5-arm64.dmg
+          test -s release-assets/TimeLink-Player-1.1.5.AppImage
+          test -s release-assets/TimeLink-Player-1.1.5.deb
+          test "$(find release-assets -maxdepth 1 -type f | wc -l)" -eq 4
+          find release-assets -maxdepth 1 -type f -size +1M -print
+      - name: Publish new release only, never replace existing assets or retarget a tag
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG=v1.1.5
+          BUILD_SHA=97f6427f5b8e505a45cc1d450cb6e277c8d015cc
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release already exists; refusing to replace it."
+            exit 0
+          fi
+          EXISTING_SHA="$(git ls-remote --tags origin "refs/tags/$TAG" | awk '{print $1}')"
+          if [ -n "$EXISTING_SHA" ] && [ "$EXISTING_SHA" != "$BUILD_SHA" ]; then
+            echo "::error::Existing tag belongs to a different commit; refusing to retarget."
+            exit 1
+          fi
+          gh release create "$TAG" \
+            release-assets/TimeLink-Player-Setup-1.1.5.exe \
+            release-assets/TimeLink-Player-1.1.5-arm64.dmg \
+            release-assets/TimeLink-Player-1.1.5.AppImage \
+            release-assets/TimeLink-Player-1.1.5.deb \
+            --target "$BUILD_SHA" \
+            --title "TimeLink Player v1.1.5" \
+            --notes "Verified Windows/macOS/Linux desktop release. Standard audio files play offline; protected TL3 V5 requires the official online license. Offline TL3 grants and synchronization are not yet available."
