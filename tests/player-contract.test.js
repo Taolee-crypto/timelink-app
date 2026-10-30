@@ -31,7 +31,9 @@ test('offline playlist only selects tracks, never silently launches licensed pla
  assert.ok(renderer.includes('selectTrack(firstNew)'));
  assert.ok(renderer.includes('async function togglePlay()'));
  assert.ok(renderer.includes('t.version!==5'),'unlicensed legacy track must be rejected');
- assert.ok(renderer.includes('if(!_token)'),'online play must require authentication');
+ assert.ok(renderer.includes('if(!_token)'),'online play must check authorization');
+ assert.ok(!renderer.includes("$('loginPanel').classList.add('show');return;"),'opening a local TL3 must not force login popup');
+ assert.ok(renderer.includes('오프라인 라이선스 발급'),'missing offline license must be reported truthfully');
  assert.ok(renderer.includes('sha256:t.containerSha256,token:_tok}'),'server lookup requires exact selected container hash');
  assert.ok(renderer.includes('server')||renderer.includes('서버'),'desktop user-facing hint must explain remote playback');
  assert.ok(renderer.includes('holder.replaceChildren()'),'untrusted filename must not be rendered as HTML');
