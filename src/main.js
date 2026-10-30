@@ -61,7 +61,10 @@ function openInAppTrack(url){
     }catch{}
     event.preventDefault();
   });
-  playbackWindow.on('closed',()=>{playbackWindow=null;});
+  playbackWindow.on('closed',()=>{
+    playbackWindow=null;
+    if(mainWindow&&!mainWindow.isDestroyed())mainWindow.webContents.send('playback-window-closed');
+  });
   return playbackWindow.loadURL(target.toString());
 }
 
