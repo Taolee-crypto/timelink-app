@@ -588,7 +588,7 @@ async function togglePlay(){
   _opening=true;$('playBtn').textContent='⏳';
   setSt('⏳ 이 PC의 LOVE CODE와 곡 TL 청취권 확인 중...');
   try{
-    const local=await tlAPI.openOfflineTrack({filePath:t.fp,sha256:t.containerSha256});
+    const local=await tlAPI.openOfflineTrack({filePath:t.fp,sha256:t.containerSha256,token:_tok});
     if(current!==_curIdx)return;
     if(local?.ok){
       $('playBtn').classList.add('on');

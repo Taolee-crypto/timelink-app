@@ -251,7 +251,7 @@ function readStoredDesktopAuth(){
   }catch{}
   return null;
 }
-async function loadOrIssueOfflineEnvelope(sha){
+async function loadOrIssueOfflineEnvelope(sha,liveToken){
   const credential=loadOrCreateOfflineCredential();
   const file=offlineGrantPath(sha);
   try{
@@ -261,20 +261,24 @@ async function loadOrIssueOfflineEnvelope(sha){
        Number(cached.expires_at)>Math.floor(Date.now()/1000))
       return {envelope:cached,credential,userId:cached.user_id,cached:true};
   }catch{}
-  const auth=readStoredDesktopAuth();
-  if(!auth)return {ok:false,code:'OFFLINE_GRANT_MISSING',error:'이 파일의 오프라인 청취권이 아직 이 PC에 발급되지 않았습니다.'};
+  // The visible desktop renderer already owns the authenticated session. Prefer
+  // that live bearer token instead of depending on a second copy in userData.
+  // This fixes first-time offline activation on the same PC immediately after login.
+  let token=typeof liveToken==='string'&&liveToken.length>=16?liveToken:null;
+  if(!token)token=readStoredDesktopAuth()?.token||null;
+  if(!token)return {ok:false,code:'OFFLINE_GRANT_MISSING',error:'이 PC의 로그인 세션으로 오프라인 청취권을 발급할 수 없습니다.'};
   const registered=await nativeRequest('/api/v1/tl3/v5/player/register',{
-    method:'POST',token:auth.token,body:{player_id:credential.playerId,public_key:credential.publicKey}
+    method:'POST',token,body:{player_id:credential.playerId,public_key:credential.publicKey}
   });
   if(registered.ok===false)return registered;
   const entitlementId='off_'+crypto.randomBytes(18).toString('base64url');
   const grant=await nativeRequest('/api/v1/tl3/v5/offline/grant/'+sha.toLowerCase(),{
-    method:'POST',token:auth.token,body:{player_id:credential.playerId,entitlement_id:entitlementId}
+    method:'POST',token,body:{player_id:credential.playerId,entitlement_id:entitlementId}
   });
   if(grant.ok===false)return grant;
   fs.mkdirSync(offlineGrantDir(),{recursive:true,mode:0o700});
   fs.writeFileSync(file,JSON.stringify(grant),{encoding:'utf8',mode:0o600});
-  return {envelope:grant,credential,userId:auth.user.id,cached:false};
+  return {envelope:grant,credential,userId:grant.user_id,cached:false};
 }
 function nativeRequest(pathname,{method='GET',token,body}={}){
   return new Promise(resolve=>{
@@ -379,13 +383,15 @@ ipcMain.handle('get-offline-quote',async(_event,{sha256,token}={})=>{
   if(typeof sha256!=='string'||!/^[a-f0-9]{64}$/i.test(sha256))return {ok:false,error:'파일 확인값이 올바르지 않습니다.'};
   return nativeRequest('/api/v1/tl3/v5/offline/quote/'+sha256.toLowerCase(),{token});
 });
-ipcMain.handle('open-offline-track',async(_event,{filePath,sha256}={})=>{
+ipcMain.handle('open-offline-track',async(event,{filePath,sha256,token}={})=>{
+  if(!mainWindow||mainWindow.isDestroyed()||event.sender!==mainWindow.webContents)
+    return {ok:false,code:'UNTRUSTED_OFFLINE_CALLER',error:'허용되지 않은 재생 요청입니다.'};
   try{
     if(typeof filePath!=='string'||!filePath.toLowerCase().endsWith('.tl3')||!fs.existsSync(filePath))
       return {ok:false,code:'OFFLINE_FILE_INVALID',error:'TL3 파일을 찾을 수 없습니다.'};
     if(typeof sha256!=='string'||!/^[a-f0-9]{64}$/i.test(sha256))
       return {ok:false,code:'OFFLINE_HASH_INVALID',error:'파일 무결성 값이 올바르지 않습니다.'};
-    const access=await loadOrIssueOfflineEnvelope(sha256.toLowerCase());
+    const access=await loadOrIssueOfflineEnvelope(sha256.toLowerCase(),token);
     if(access?.ok===false)return access;
     closePlayback();
     const opened=await openAuthorizedLocalTrack({
