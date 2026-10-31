@@ -27,15 +27,15 @@ test('offline ledger writes, local recharge, legacy audio decryption and phantom
  assert.ok(main.includes('resolve-by-container/'),'download hash must map through authenticated sealed V5 server');
  assert.ok(main.includes("response.statusCode>=300")||main.includes('res.statusCode>=300'),'non-200 server replies must not count as successful TL operations');
 });
-test('offline playlist only selects tracks, never silently launches licensed playback',()=>{
+test('offline playlist selects files and activates a device-bound grant only on play',()=>{
  assert.ok(renderer.includes('selectTrack(firstNew)'));
  assert.ok(renderer.includes('async function togglePlay()'));
  assert.ok(renderer.includes('t.version!==5'),'unlicensed legacy track must be rejected');
- assert.ok(renderer.includes('if(!_token)'),'online play must check authorization');
+ assert.ok(renderer.includes('openOfflineTrack({filePath:t.fp,sha256:t.containerSha256})'),'local V5 playback must try the device-bound offline grant first');
  assert.ok(!renderer.includes("$('loginPanel').classList.add('show');return;"),'opening a local TL3 must not force login popup');
- assert.ok(renderer.includes('오프라인 라이선스 발급'),'missing offline license must be reported truthfully');
- assert.ok(renderer.includes('sha256:t.containerSha256,token:_tok}'),'server lookup requires exact selected container hash');
- assert.ok(renderer.includes('server')||renderer.includes('서버'),'desktop user-facing hint must explain remote playback');
+ assert.ok(renderer.includes('LOVE CODE'),'player must explain device/file binding');
+ assert.ok(renderer.includes('openOnlineTrack({sha256:t.containerSha256,token:_tok})'),'online fallback requires exact selected container hash');
  assert.ok(renderer.includes('holder.replaceChildren()'),'untrusted filename must not be rendered as HTML');
- assert.ok(bridge.includes('openOnlineTrack'),'preload must explicitly expose the one safe online action');
+ assert.ok(bridge.includes('openOnlineTrack'),'preload must explicitly expose online playback');
+ assert.ok(bridge.includes('openOfflineTrack'),'preload must explicitly expose device-bound offline playback');
 });

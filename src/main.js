@@ -8,38 +8,75 @@ const {app,BrowserWindow,BrowserView,ipcMain,dialog,nativeTheme,shell}=require('
 // This desktop app is itself the media player; allow that trusted playback view to
 // start audible media after server authorization.
 app.commandLine.appendSwitch('autoplay-policy','no-user-gesture-required');
-const fs=require('node:fs'),path=require('node:path'),https=require('node:https');
+const fs=require('node:fs'),path=require('node:path'),https=require('node:https'),crypto=require('node:crypto');
 const {inspectTLFile}=require('./tlnk-header');
 nativeTheme.themeSource='dark';
 
 // Only trusted main-process callers may open licensed local audio.
 // Never register this entry point as a renderer-accessible IPC handler.
 const {prepareAuthorizedOfflineAudio}=require('./offline-authorized-audio');
+const {createCredential,prepareDeviceBoundOfflineAudio}=require('./offline-device-envelope');
+let offlineWindow=null,offlineTicker=null;
 async function openAuthorizedLocalTrack(options){
-  const approved=prepareAuthorizedOfflineAudio(options);
+  if(offlineTicker){clearInterval(offlineTicker);offlineTicker=null;}
+  if(offlineWindow&&!offlineWindow.isDestroyed())offlineWindow.destroy();
+  const approved=options.envelope
+    ?prepareDeviceBoundOfflineAudio(options)
+    :prepareAuthorizedOfflineAudio(options);
   const window=new BrowserWindow({
     width:720,height:330,minWidth:520,minHeight:290,
     backgroundColor:'#25170f',title:'TimeLink Player · 오프라인',
     webPreferences:{preload:path.join(__dirname,'offline-audio-preload.js'),contextIsolation:true,nodeIntegration:false,sandbox:true,webSecurity:true}
   });
+  offlineWindow=window;
   window.setMenu(null);
   window.webContents.setWindowOpenHandler(()=>({action:'deny'}));
   window.webContents.on('will-navigate',e=>e.preventDefault());
   window.webContents.once('did-finish-load',()=>{
     if(!window.isDestroyed())window.webContents.send('authorized-offline-audio',approved.mp3);
   });
-  // Expired rights must stop audio even if the renderer is still open.
   const millisRemaining=approved.session.rights.expiresAt*1000-Date.now();
   if(!Number.isSafeInteger(millisRemaining)||millisRemaining<=0){
-    window.destroy();
-    throw Error('OFFLINE_GRANT_EXPIRED');
+    window.destroy();throw Error('OFFLINE_GRANT_EXPIRED');
   }
-  const expiryTimer=setTimeout(()=>{
-    if(!window.isDestroyed())window.destroy();
-  },Math.min(millisRemaining,2147483647));
-  window.once('closed',()=>clearTimeout(expiryTimer));
+  const expiryTimer=setTimeout(()=>{if(!window.isDestroyed())window.destroy();},Math.min(millisRemaining,2147483647));
+  let lastPosition=0,carry=0,busy=false;
+  offlineTicker=setInterval(async()=>{
+    if(busy||window.isDestroyed())return;
+    busy=true;
+    try{
+      const state=await window.webContents.executeJavaScript(`(()=>{
+        const a=document.getElementById('player');
+        return {playing:!!a&&!a.paused&&!a.ended&&!a.seeking,position:a?Number(a.currentTime)||0:0,duration:a?Number(a.duration)||0:0};
+      })()`);
+      const position=Number(state.position)||0;
+      if(state.playing&&position>=lastPosition){
+        const delta=position-lastPosition;
+        if(delta>0&&delta<1.5)carry+=delta;
+        while(carry>=1){
+          approved.session.recordAudibleSeconds({receiptId:'r_'+crypto.randomBytes(12).toString('base64url'),audibleSeconds:1});
+          carry-=1;
+        }
+      }else if(position<lastPosition||position-lastPosition>=1.5){carry=0;}
+      lastPosition=position;
+      if(mainWindow&&!mainWindow.isDestroyed())mainWindow.webContents.send('playback-state',state);
+    }catch(error){
+      if(/OFFLINE_RESERVATION_EXCEEDED|OFFLINE_GRANT_EXPIRED/.test(String(error?.message||error))){
+        try{window.destroy();}catch{}
+      }
+    }finally{busy=false;}
+  },500);
+  window.once('closed',()=>{
+    clearTimeout(expiryTimer);
+    if(offlineTicker){clearInterval(offlineTicker);offlineTicker=null;}
+    if(offlineWindow===window)offlineWindow=null;
+    if(mainWindow&&!mainWindow.isDestroyed()){
+      mainWindow.webContents.send('playback-state',{playing:false,position:0,duration:0});
+      mainWindow.webContents.send('playback-window-closed');
+    }
+  });
   await window.loadFile(path.join(__dirname,'offline-audio.html'));
-  return {window,session:approved.session};
+  return {window,session:approved.session,manifest:approved.manifest};
 }
 
 let mainWindow=null,playbackView=null,playbackTicker=null;
@@ -53,6 +90,18 @@ function closePlayback(){
   if(mainWindow&&!mainWindow.isDestroyed())mainWindow.webContents.send('playback-state',{playing:false,position:0,duration:0});
 }
 async function playbackCommand(command){
+  if(offlineWindow&&!offlineWindow.isDestroyed()){
+    if(!['pause','resume','seek-forward','seek-back'].includes(command))return {ok:false,error:'INVALID_COMMAND'};
+    return offlineWindow.webContents.executeJavaScript(`(()=>{
+      const audio=document.getElementById('player');if(!audio)return {ok:false,error:'AUDIO_NOT_READY'};
+      const command=${JSON.stringify(command)};
+      if(command==='pause')audio.pause();
+      else if(command==='resume')audio.play();
+      else if(command==='seek-forward'&&Number.isFinite(audio.duration))audio.currentTime=Math.min(audio.duration,audio.currentTime+10);
+      else if(command==='seek-back')audio.currentTime=Math.max(0,audio.currentTime-10);
+      return {ok:true};
+    })()`);
+  }
   if(!playbackView||playbackView.webContents.isDestroyed())return {ok:false,error:'NO_ACTIVE_PLAYBACK'};
   // Evaluate controls inside the trusted track renderer without assuming its audio
   // variable exists. A missing audio element must return an error, not throw.
@@ -179,6 +228,54 @@ ipcMain.on('desktop-playback-session',event=>{
   }catch{}
 });
 function userStore(){return path.join(app.getPath('userData'),STORE_NAME);}
+function offlineCredentialStore(){return path.join(app.getPath('userData'),'offline-player-key.json');}
+function offlineGrantDir(){return path.join(app.getPath('userData'),'offline-grants');}
+function offlineReceiptDir(){return path.join(app.getPath('userData'),'offline-receipts');}
+function offlineGrantPath(sha){return path.join(offlineGrantDir(),String(sha).toLowerCase()+'.json');}
+function loadOrCreateOfflineCredential(){
+  try{
+    const saved=JSON.parse(fs.readFileSync(offlineCredentialStore(),'utf8'));
+    if(saved&&/^[A-Fa-f0-9]{48}$/.test(saved.playerId)&&saved.privateKey&&saved.publicKey)return saved;
+  }catch{}
+  const created=createCredential();
+  fs.mkdirSync(path.dirname(offlineCredentialStore()),{recursive:true,mode:0o700});
+  fs.writeFileSync(offlineCredentialStore(),JSON.stringify(created),{encoding:'utf8',mode:0o600});
+  return created;
+}
+function readStoredDesktopAuth(){
+  try{
+    const stored=JSON.parse(fs.readFileSync(userStore(),'utf8'));
+    const user=JSON.parse(stored.tl_user||'null');
+    if(typeof stored.tl_token==='string'&&stored.tl_token.length>=16&&user&&user.id)
+      return {token:stored.tl_token,user};
+  }catch{}
+  return null;
+}
+async function loadOrIssueOfflineEnvelope(sha){
+  const credential=loadOrCreateOfflineCredential();
+  const file=offlineGrantPath(sha);
+  try{
+    const cached=JSON.parse(fs.readFileSync(file,'utf8'));
+    if(cached&&cached.ok===true&&cached.player_id===credential.playerId&&
+       String(cached.container_sha256||'').toLowerCase()===sha.toLowerCase()&&
+       Number(cached.expires_at)>Math.floor(Date.now()/1000))
+      return {envelope:cached,credential,userId:cached.user_id,cached:true};
+  }catch{}
+  const auth=readStoredDesktopAuth();
+  if(!auth)return {ok:false,code:'OFFLINE_GRANT_MISSING',error:'이 파일의 오프라인 청취권이 아직 이 PC에 발급되지 않았습니다.'};
+  const registered=await nativeRequest('/api/v1/tl3/v5/player/register',{
+    method:'POST',token:auth.token,body:{player_id:credential.playerId,public_key:credential.publicKey}
+  });
+  if(registered.ok===false)return registered;
+  const entitlementId='off_'+crypto.randomBytes(18).toString('base64url');
+  const grant=await nativeRequest('/api/v1/tl3/v5/offline/grant/'+sha.toLowerCase(),{
+    method:'POST',token:auth.token,body:{player_id:credential.playerId,entitlement_id:entitlementId}
+  });
+  if(grant.ok===false)return grant;
+  fs.mkdirSync(offlineGrantDir(),{recursive:true,mode:0o700});
+  fs.writeFileSync(file,JSON.stringify(grant),{encoding:'utf8',mode:0o600});
+  return {envelope:grant,credential,userId:auth.user.id,cached:false};
+}
 function nativeRequest(pathname,{method='GET',token,body}={}){
   return new Promise(resolve=>{
     let settled=false;
@@ -282,6 +379,27 @@ ipcMain.handle('get-offline-quote',async(_event,{sha256,token}={})=>{
   if(typeof sha256!=='string'||!/^[a-f0-9]{64}$/i.test(sha256))return {ok:false,error:'파일 확인값이 올바르지 않습니다.'};
   return nativeRequest('/api/v1/tl3/v5/offline/quote/'+sha256.toLowerCase(),{token});
 });
+ipcMain.handle('open-offline-track',async(_event,{filePath,sha256}={})=>{
+  try{
+    if(typeof filePath!=='string'||!filePath.toLowerCase().endsWith('.tl3')||!fs.existsSync(filePath))
+      return {ok:false,code:'OFFLINE_FILE_INVALID',error:'TL3 파일을 찾을 수 없습니다.'};
+    if(typeof sha256!=='string'||!/^[a-f0-9]{64}$/i.test(sha256))
+      return {ok:false,code:'OFFLINE_HASH_INVALID',error:'파일 무결성 값이 올바르지 않습니다.'};
+    const access=await loadOrIssueOfflineEnvelope(sha256.toLowerCase());
+    if(access?.ok===false)return access;
+    closePlayback();
+    const opened=await openAuthorizedLocalTrack({
+      filePath,envelope:access.envelope,credential:access.credential,userId:access.userId,
+      directory:offlineReceiptDir()
+    });
+    return {ok:true,offline:true,cached:access.cached,
+      entitlement_id:opened.session.rights.entitlementId,
+      remaining_seconds:opened.session.rights.fileTlReserved,
+      expires_at:opened.session.rights.expiresAt};
+  }catch(error){
+    return {ok:false,code:'OFFLINE_PLAY_FAILED',error:'오프라인 TL3 재생 실패: '+String(error?.message||error)};
+  }
+});
 ipcMain.handle('open-online-track',async(_event,{sha256,token}={})=>{
   if(!token)return {ok:false,error:'보호된 TL3 V5는 로그인 후 들을 수 있습니다.'};
   if(typeof sha256!=='string'||!/^[a-f0-9]{64}$/i.test(sha256))
@@ -298,8 +416,13 @@ ipcMain.handle('open-online-track',async(_event,{sha256,token}={})=>{
   catch(e){return {ok:false,error:'앱 내부 재생 창을 열 수 없습니다: '+e.message};}
 });
 // The stop button must stop the ACTUAL authorized playback window, not just a label.
-ipcMain.handle('stop-online-track',async()=>{const stopped=!!playbackView;closePlayback();return {ok:true,stopped};});
-ipcMain.handle('online-track-status',()=>({ok:true,playingWindow:!!playbackView}));
+ipcMain.handle('stop-online-track',async()=>{
+  const stopped=!!playbackView||!!offlineWindow;
+  closePlayback();
+  if(offlineWindow&&!offlineWindow.isDestroyed())offlineWindow.destroy();
+  return {ok:true,stopped};
+});
+ipcMain.handle('online-track-status',()=>({ok:true,playingWindow:!!playbackView||!!offlineWindow,offline:!!offlineWindow}));
 ipcMain.handle('playback-command',async(_event,command)=>playbackCommand(command));
 ipcMain.handle('open-shareplace',async()=>{
   try{await shell.openExternal(WEBSITE+'/shareplace.html');return {ok:true};}

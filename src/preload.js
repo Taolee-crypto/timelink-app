@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('tlAPI', {
   rechargeTL:       opts  => ipcRenderer.invoke('recharge-tl', opts),
   recordPOC:        opts  => ipcRenderer.invoke('record-poc', opts),
   getOfflineQuote:  opts  => ipcRenderer.invoke('get-offline-quote', opts),
+  openOfflineTrack: opts  => ipcRenderer.invoke('open-offline-track', opts),
   openOnlineTrack:  opts  => ipcRenderer.invoke('open-online-track', opts),
   stopOnlineTrack:  ()    => ipcRenderer.invoke('stop-online-track'),
   onlineTrackStatus:()    => ipcRenderer.invoke('online-track-status'),
