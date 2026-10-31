@@ -62,6 +62,16 @@ function readPortableTl3(filePath){
   const bytes=fs.readFileSync(filePath),split=splitPortableTl3Buffer(bytes);
   return {...split,bytes};
 }
+function portableTlStatus({filePath,directory}){
+  const {capsule}=readPortableTl3(filePath);
+  if(!capsule)return {ok:false,portable:false,total:0,used:0,remaining:0};
+  const total=Number(capsule.reserved_seconds);
+  if(!Number.isSafeInteger(total)||total<0)throw Error('PORTABLE_TL3_BALANCE_INVALID');
+  const journal=new OfflineReceiptJournal(directory,String(capsule.grant_id));
+  const receipts=journal.snapshot();
+  const used=receipts.reduce((n,r)=>n+Number(r.audibleSeconds||r.audible_seconds||0),0);
+  return {ok:true,portable:true,grantId:String(capsule.grant_id),total,used,remaining:Math.max(0,total-used)};
+}
 function preparePortableOfflineAudio({filePath,loveSession,directory,clock=Date.now}){
   const {base,capsule}=readPortableTl3(filePath);
   if(!capsule)throw Error('PORTABLE_TL3_CAPSULE_MISSING');
@@ -83,4 +93,4 @@ function preparePortableOfflineAudio({filePath,loveSession,directory,clock=Date.
   };
   return {session,mp3:decoded.mp3,manifest:decoded.manifest,containerSha256:unwrapped.info.baseSha256,capsule};
 }
-module.exports={splitPortableTl3Buffer,inspectBase,readPortableTl3,preparePortableOfflineAudio,unwrapPortableContentKey};
+module.exports={splitPortableTl3Buffer,inspectBase,readPortableTl3,portableTlStatus,preparePortableOfflineAudio,unwrapPortableContentKey};
