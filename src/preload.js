@@ -9,6 +9,8 @@ contextBridge.exposeInMainWorld('tlAPI', {
   openOnlineTrack:  opts  => ipcRenderer.invoke('open-online-track', opts),
   stopOnlineTrack:  ()    => ipcRenderer.invoke('stop-online-track'),
   onlineTrackStatus:()    => ipcRenderer.invoke('online-track-status'),
+  playbackCommand: command => ipcRenderer.invoke('playback-command',command),
+  onPlaybackState: cb => { if(typeof cb==='function')ipcRenderer.on('playback-state',(_event,state)=>cb(state)); },
   openShareplace:   ()    => ipcRenderer.invoke('open-shareplace'),
   openWallet:       ()    => ipcRenderer.invoke('open-wallet'),
   login:            opts  => ipcRenderer.invoke('login', opts),

@@ -2,7 +2,7 @@
 // TimeLink Player: downloaded TLNK files are sealed references.
 // Playback, licensing, audible-time accounting and TL settlement are server
 // authoritative; an Electron process never rewrites media or mints local TL.
-const {app,BrowserWindow,ipcMain,dialog,nativeTheme,shell}=require('electron');
+const {app,BrowserWindow,BrowserView,ipcMain,dialog,nativeTheme,shell}=require('electron');
 const fs=require('node:fs'),path=require('node:path'),https=require('node:https');
 const {inspectTLFile}=require('./tlnk-header');
 nativeTheme.themeSource='dark';
@@ -37,35 +37,64 @@ async function openAuthorizedLocalTrack(options){
   return {window,session:approved.session};
 }
 
-let mainWindow=null,playbackWindow=null;
-function openInAppTrack(url){
+let mainWindow=null,playbackView=null,playbackTicker=null;
+function closePlayback(){
+  if(playbackTicker){clearInterval(playbackTicker);playbackTicker=null;}
+  if(playbackView){
+    const view=playbackView;playbackView=null;
+    if(mainWindow&&!mainWindow.isDestroyed())mainWindow.removeBrowserView(view);
+    if(!view.webContents.isDestroyed())view.webContents.destroy();
+  }
+  if(mainWindow&&!mainWindow.isDestroyed())mainWindow.webContents.send('playback-state',{playing:false,position:0,duration:0});
+}
+async function playbackCommand(command){
+  if(!playbackView||playbackView.webContents.isDestroyed())return {ok:false,error:'NO_ACTIVE_PLAYBACK'};
+  const js=command==='pause'?'if(_tlAudio&&!_tlAudio.paused)togglePlay();':
+    command==='resume'?'if(_tlAudio&&_tlAudio.paused)togglePlay();':
+    command==='seek-forward'?'if(_tlAudio&&Number.isFinite(_tlAudio.duration))_tlAudio.currentTime=Math.min(_tlAudio.duration,_tlAudio.currentTime+10);':
+    command==='seek-back'?'if(_tlAudio)_tlAudio.currentTime=Math.max(0,_tlAudio.currentTime-10);':'';
+  if(!js)return {ok:false,error:'INVALID_COMMAND'};
+  await playbackView.webContents.executeJavaScript(js);
+  return {ok:true};
+}
+async function openInAppTrack(url){
   const target=new URL(url);
   if(target.origin!==WEBSITE||target.pathname!=='/track.html'||!target.searchParams.get('id'))throw Error('허용되지 않는 재생 주소입니다.');
-  if(playbackWindow&&!playbackWindow.isDestroyed()){
-    playbackWindow.show();
-    return playbackWindow.loadURL(target.toString());
-  }
-  playbackWindow=new BrowserWindow({
-    parent:mainWindow||undefined,
-    width:940,height:760,minWidth:520,minHeight:540,
-    title:'TimeLink Player · TL3 V5',
-    backgroundColor:'#080813',
-    webPreferences:{preload:path.join(__dirname,'playback-auth-preload.js'),contextIsolation:true,nodeIntegration:false,sandbox:true,webSecurity:true}
-  });
-  playbackWindow.setMenu(null);
-  playbackWindow.webContents.setWindowOpenHandler(()=>({action:'deny'}));
-  playbackWindow.webContents.on('will-navigate',(event,navigationUrl)=>{
-    try{
-      const destination=new URL(navigationUrl);
-      if(destination.origin===WEBSITE&&['/track.html','/login.html','/signup.html','/shareplace.html','/wallet.html'].includes(destination.pathname))return;
-    }catch{}
+  closePlayback();
+  const view=new BrowserView({webPreferences:{preload:path.join(__dirname,'playback-auth-preload.js'),contextIsolation:true,nodeIntegration:false,sandbox:true,webSecurity:true,backgroundThrottling:false}});
+  playbackView=view;
+  mainWindow.addBrowserView(view);
+  // Hidden renderer runs the existing official V5 license/decrypt/settlement engine.
+  // The only visible playback interface remains src/index.html.
+  view.setBounds({x:0,y:0,width:1,height:1});
+  view.webContents.setWindowOpenHandler(()=>({action:'deny'}));
+  view.webContents.on('will-navigate',(event,destination)=>{
+    try{const u=new URL(destination);if(u.origin===WEBSITE&&u.pathname==='/track.html')return;}catch{}
     event.preventDefault();
   });
-  playbackWindow.on('closed',()=>{
-    playbackWindow=null;
-    if(mainWindow&&!mainWindow.isDestroyed())mainWindow.webContents.send('playback-window-closed');
-  });
-  return playbackWindow.loadURL(target.toString());
+  try{
+    await view.webContents.loadURL(target.toString());
+    if(playbackView!==view)return;
+    await view.webContents.executeJavaScript(`new Promise((resolve,reject)=>{
+      let attempts=0;
+      const poll=()=>{if(typeof _share!=='undefined'&&_share&&typeof playTrack==='function'){
+        Promise.resolve(playTrack()).then(resolve,reject);
+      }else if(++attempts>100)reject(Error('TRACK_LOAD_TIMEOUT'));
+      else setTimeout(poll,150);};
+      poll();
+    })`);
+    playbackTicker=setInterval(async()=>{
+      if(playbackView!==view||view.webContents.isDestroyed())return;
+      try{
+        const state=await view.webContents.executeJavaScript(`(()=>{
+          const a=typeof _tlAudio!=='undefined'?_tlAudio:null;
+          return {playing:!!a&&!a.paused&&!a.ended,position:a?Number(a.currentTime)||0:0,
+            duration:a?Number(a.duration)||0:0};
+        })()`);
+        if(mainWindow&&!mainWindow.isDestroyed())mainWindow.webContents.send('playback-state',state);
+      }catch{}
+    },500);
+  }catch(error){closePlayback();throw error;}
 }
 
 const SUPPORTED=/\.(?:tl|tl3|tl4|tlg|tld|tle)$/i;
@@ -79,9 +108,9 @@ const PLAYBACK_ALLOWED_PATHS=new Set(['/track.html','/login.html','/signup.html'
 // trusted top-level timelink.digital frame and never to arbitrary web content.
 ipcMain.on('desktop-playback-session',event=>{
   event.returnValue=null;
-  const window=playbackWindow;
-  if(!window||window.isDestroyed()||event.sender!==window.webContents||
-     event.senderFrame!==window.webContents.mainFrame)return;
+  const view=playbackView;
+  if(!view||view.webContents.isDestroyed()||event.sender!==view.webContents||
+     event.senderFrame!==view.webContents.mainFrame)return;
   let address;
   try{address=new URL(event.senderFrame.url);}catch{return;}
   if(address.origin!==WEBSITE||!PLAYBACK_ALLOWED_PATHS.has(address.pathname))return;
@@ -212,15 +241,9 @@ ipcMain.handle('open-online-track',async(_event,{sha256,token}={})=>{
   catch(e){return {ok:false,error:'앱 내부 재생 창을 열 수 없습니다: '+e.message};}
 });
 // The stop button must stop the ACTUAL authorized playback window, not just a label.
-ipcMain.handle('stop-online-track',async()=>{
-  if(!playbackWindow||playbackWindow.isDestroyed())return {ok:true,stopped:false};
-  playbackWindow.close();
-  playbackWindow=null;
-  return {ok:true,stopped:true};
-});
-ipcMain.handle('online-track-status',()=>{
-  return {ok:true,playingWindow:!!(playbackWindow&&!playbackWindow.isDestroyed())};
-});
+ipcMain.handle('stop-online-track',async()=>{const stopped=!!playbackView;closePlayback();return {ok:true,stopped};});
+ipcMain.handle('online-track-status',()=>({ok:true,playingWindow:!!playbackView}));
+ipcMain.handle('playback-command',async(_event,command)=>playbackCommand(command));
 ipcMain.handle('open-shareplace',async()=>{
   try{await shell.openExternal(WEBSITE+'/shareplace.html');return {ok:true};}
   catch(e){return {ok:false,error:e.message};}

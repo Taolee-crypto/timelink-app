@@ -577,6 +577,8 @@ async function togglePlay(){
   const t=_playlist[_curIdx];
   if(!t){setSt('먼저 TL3 파일을 추가하세요.','warn');return;}
   if(_opening)return;
+  if(_playbackState.playing){await tlAPI.playbackCommand('pause');return;}
+  if(_playbackState.position>0&&_playbackState.duration>0){const r=await tlAPI.playbackCommand('resume');if(r?.ok)return;}
   if(t.version!==5){
     setSt('구버전 TLNK 파일은 서버 라이선스 없이 재생할 수 없습니다. V5 음원으로 다시 등록해 주세요.','err');
     return;
@@ -591,7 +593,7 @@ async function togglePlay(){
     if(current!==_curIdx||_tok!==_token)return;
     if(!r?.ok)throw Error(r?.error||'공개된 암호화 자산과 일치하지 않습니다.');
     $('playBtn').classList.add('on');
-    setSt('플레이어 내부 V5 재생 창을 열었습니다. 중지 버튼으로 실제 재생을 종료할 수 있습니다.','ok');
+    setSt('TL3 V5 서버 인증 재생을 시작했습니다. 현재 플레이어에서 제어합니다.','ok');
     await syncMyTL();
   }catch(e){if(current===_curIdx)setSt('❌ '+e.message,'err');}
   finally{_opening=false;$('playBtn').textContent='▶';}
@@ -620,8 +622,25 @@ function removeTrack(index){
   else if(_curIdx>index)_curIdx--;
   renderPL();
 }
-function seekTo(){setSt('TL3 V5 탐색은 공식 재생창에서 이용하세요.','warn');}
-function seekRel(){setSt('TL3 V5 탐색은 공식 재생창에서 이용하세요.','warn');}
+let _playbackState={playing:false,position:0,duration:0};
+if(typeof tlAPI.onPlaybackState==='function')tlAPI.onPlaybackState(state=>{
+  _playbackState=state||_playbackState;
+  const playing=!!state?.playing;
+  $('playBtn').textContent=playing?'⏸':'▶';
+  $('playBtn').classList.toggle('on',playing);
+  const duration=Number(state?.duration)||0,position=Number(state?.position)||0;
+  const clock=n=>Math.floor(n/60)+':'+String(Math.floor(n%60)).padStart(2,'0');
+  $('timeEl').textContent=clock(position);
+  $('durEl').textContent=clock(duration);
+  $('progFill').style.width=duration>0?Math.max(0,Math.min(100,position/duration*100))+'%':'0%';
+});
+async function seekTo(event){
+  setSt('TL3 청취시간 정산을 보호하기 위해 탐색은 서버 검증된 범위에서만 지원합니다.','warn');
+}
+async function seekRel(seconds){
+  const r=await tlAPI.playbackCommand(seconds<0?'seek-back':'seek-forward');
+  if(!r?.ok)setSt('탐색할 재생 세션이 없습니다.','warn');
+}
 async function doRecharge(){
   const r=await tlAPI.openWallet();
   setSt(r?.ok?'공식 TimeLink 지갑에서 충전 후 이용하세요.':'❌ '+(r?.error||'지갑을 열 수 없습니다.'),r?.ok?'ok':'err');
