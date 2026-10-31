@@ -19,7 +19,7 @@ test('desktop accepts only TimeLink TL family, never generic audio formats',()=>
  assert.doesNotMatch(preload,/openLocalAudio|open-local-audio/);
  assert.doesNotMatch(html,/audioEl|openLocalAudio|\.mp3|MP3|WAV|FLAC|playLocalTrack/);
  assert.match(html,/const TL_FILES=/);
- assert.equal(pkg.version,'1.1.6');
+ assert.equal(pkg.version,'1.1.7');
  assert.match(html,/class="tb-ver">v1\.1\.6/);
 });
 test('dropped and manually supplied MP3 are rejected before header parsing',async()=>{
