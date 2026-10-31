@@ -118,6 +118,21 @@ async function openInAppTrack(url){
       else setTimeout(poll,150);};
       poll();
     })`);
+    // A resolved playTrack() only means the website handler returned. Do not
+    // report success until an actual media element exists and advances.
+    const audible=await view.webContents.executeJavaScript(`new Promise((resolve,reject)=>{
+      let tries=0,previous=-1;
+      const check=()=>{
+        const a=typeof _tlAudio!=='undefined'?_tlAudio:null;
+        if(a&&a.error)return reject(Error('AUDIO_MEDIA_ERROR_'+a.error.code));
+        if(a&&!a.paused&&!a.ended&&a.currentTime>0&&a.currentTime>previous)
+          return resolve(true);
+        if(a&&Number.isFinite(a.currentTime))previous=a.currentTime;
+        if(++tries>=40)return reject(Error('AUDIO_NOT_PLAYING'));
+        setTimeout(check,250);
+      };check();
+    })`);
+    if(!audible)throw Error('AUDIO_NOT_PLAYING');
     playbackTicker=setInterval(async()=>{
       if(playbackView!==view||view.webContents.isDestroyed())return;
       try{
