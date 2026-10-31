@@ -11,6 +11,7 @@ test('online V5 track opens inside protected Electron playback window, never ext
  assert.match(main,/setWindowOpenHandler\(\(\)=>\(\{action:'deny'\}\)\)/);
  assert.match(main,/u\.origin===WEBSITE/);
  assert.match(main,/target\.pathname!=='\/track\.html'/);
+ assert.match(main,/autoplay-policy','no-user-gesture-required/);
  assert.match(main,/loaded\.origin!==WEBSITE\|\|loaded\.pathname!=='\/track\.html'/);
  assert.match(main,/PLAYBACK_SESSION_SYNC_FAILED/);
  assert.match(main,/localStorage\.setItem\('tl_token'/);
