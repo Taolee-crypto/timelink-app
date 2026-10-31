@@ -623,7 +623,7 @@ function removeTrack(index){
   renderPL();
 }
 let _playbackState={playing:false,position:0,duration:0};
-tlAPI.onPlaybackState(state=>{
+if(typeof tlAPI.onPlaybackState==='function')tlAPI.onPlaybackState(state=>{
   _playbackState=state||_playbackState;
   const playing=!!state?.playing;
   $('playBtn').textContent=playing?'⏸':'▶';
