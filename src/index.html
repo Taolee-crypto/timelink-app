@@ -363,6 +363,7 @@ body{background:radial-gradient(ellipse 95% 80% at 14% -15%,rgba(251,139,21,.30)
   <!-- 비디오 -->
   <div class="video-area" id="videoArea">
     <video id="videoEl" playsinline></video>
+    <audio id="portableAudio" preload="metadata" style="display:none"></audio>
     <button class="video-fullscreen-btn" onclick="tlAPI.toggleFullscreen()" title="전체화면">⛶</button>
   </div>
 
@@ -384,7 +385,7 @@ body{background:radial-gradient(ellipse 95% 80% at 14% -15%,rgba(251,139,21,.30)
     <!-- 파일 TL 잔액 -->
     <div class="file-tl">
       <div class="ftl-top">
-        <span class="ftl-label">🔒 TL 서버 원장</span>
+        <span class="ftl-label" id="ftlLabel">🔒 TL 잔액</span>
         <span class="ftl-val" id="ftlVal">— TL</span>
       </div>
       <div class="ftl-bar"><div class="ftl-fill" id="ftlFill" style="width:0%"></div></div>
@@ -455,7 +456,7 @@ function resetUI(){
   $('npTitle').textContent='재생 중인 파일 없음';
   $('npArtist').textContent='TimeLink TL 파일을 추가하세요';
   $('npType').style.display='none';
-  $('ftlVal').textContent='— TL';$('ftlFill').style.width='0%';
+  $('ftlLabel').textContent='🔒 TL 잔액';$('ftlVal').textContent='— TL';$('ftlFill').style.width='0%';
   $('ftlRemain').textContent='서버에서 청취 사용량 정산';
   $('ftlRate').textContent='1 TL/초 · 실제 청취';
   $('timeEl').textContent='0:00';$('durEl').textContent='0:00';
@@ -530,7 +531,7 @@ async function addToPlaylist(paths,selectFirst=false){
       }
     }
     const t={fp,version:parsed.version,profile:parsed.profile,hdr:parsed.header||{},
-      containerSha256:parsed.container_sha256||null,love,portable:parsed.portable===true,portableSeconds:Number(parsed.portable_reserved_seconds)||0,
+      containerSha256:parsed.container_sha256||null,love,portable:parsed.portable===true,portableSeconds:Number(parsed.portable_reserved_seconds)||0,portableRemaining:Number(parsed.portable_reserved_seconds)||0,
       isVideo:parsed.version!==5&&/\.(?:tl4)$/i.test(fp),
       icon:parsed.version===5?'🎵':'🔒'};
     _playlist.push(t);
@@ -553,8 +554,12 @@ function selectTrack(index){
   $('rcBar').style.display='none';
   $('progFill').style.width='0%';$('timeEl').textContent='0:00';$('durEl').textContent='0:00';
   $('playBtn').textContent='▶';$('playBtn').classList.remove('on');
-  $('ftlVal').textContent='— TL';$('ftlFill').style.width='0%';
-  $('ftlRemain').textContent='TL 잔액·과금은 서버에서 확인';
+  $('ftlLabel').textContent=t.portable?'🔒 TL3 파일 잔액':'🔒 TL 서버 원장';
+  $('ftlVal').textContent=t.portable?t.portableRemaining.toLocaleString('ko-KR')+' TL':'— TL';
+  $('ftlFill').style.width=t.portable&&t.portableSeconds>0?Math.max(0,Math.min(100,t.portableRemaining/t.portableSeconds*100))+'%':'0%';
+  $('ftlRemain').textContent=t.portable
+    ?'남은 재생 · '+Math.floor(t.portableRemaining/60)+'분 '+t.portableRemaining%60+'초'
+    :'TL 잔액·과금은 서버에서 확인';
   $('ftlRate').textContent='1 TL/초 · 실제 청취';
   renderPL();
   void refreshOfflineAvailability();
@@ -566,7 +571,24 @@ function selectTrack(index){
 }
 async function refreshOfflineAvailability(){
   const current=_curIdx,t=_playlist[current],token=_token;
-  if(!t||t.version!==5||!token||!t.containerSha256)return;
+  if(!t||t.version!==5||!t.containerSha256)return;
+  if(t.portable){
+    try{
+      const status=await tlAPI.getPortableStatus({filePath:t.fp});
+      if(current!==_curIdx)return;
+      if(status?.ok){
+        t.portableSeconds=Number(status.total)||t.portableSeconds;
+        t.portableRemaining=Math.max(0,Number(status.remaining)||0);
+        $('ftlLabel').textContent='🔒 TL3 파일 잔액';
+        $('ftlVal').textContent=t.portableRemaining.toLocaleString('ko-KR')+' TL';
+        $('ftlFill').style.width=t.portableSeconds>0?Math.max(0,Math.min(100,t.portableRemaining/t.portableSeconds*100))+'%':'0%';
+        $('ftlRemain').textContent='남은 재생 · '+Math.floor(t.portableRemaining/60)+'분 '+t.portableRemaining%60+'초';
+        renderPL();
+      }
+    }catch(e){if(current===_curIdx)setSt('TL3 잔액을 읽을 수 없습니다: '+e.message,'err');}
+    return;
+  }
+  if(!token)return;
   $('ftlRemain').textContent='이 곡의 오프라인 사용 가능 시간 확인 중...';
   try{
     const quote=await tlAPI.getOfflineQuote({sha256:t.containerSha256,token});
@@ -583,7 +605,7 @@ async function refreshOfflineAvailability(){
 tlAPI.onPlaybackWindowClosed(()=>{
   $('playBtn').textContent='▶';
   $('playBtn').classList.remove('on');
-  setSt('음악 재생 창을 닫았습니다.','ok');
+  setSt('재생을 종료했습니다.','ok');
   void syncMyTL();
 });
 
@@ -614,9 +636,15 @@ async function togglePlay(){
     if(local?.ok){
       $('playBtn').classList.add('on');
       const seconds=Number(local.remaining_seconds)||0;
+      if(local.portable){
+        t.portableRemaining=seconds;
+        t.portableSeconds=Number(local.total_seconds)||t.portableSeconds||seconds;
+        $('ftlLabel').textContent='🔒 TL3 파일 잔액';
+      }
       $('ftlVal').textContent=seconds.toLocaleString('ko-KR')+' TL';
-      $('ftlRemain').textContent=(local.portable?'TL3 파일 이용시간 · ':'오프라인 이용 가능 시간 · ')+Math.floor(seconds/60)+'분 '+seconds%60+'초';
-      setSt(local.portable?'LOVE CODE 합의 완료 · TL3 자체 이용정보로 재생합니다.':'LOVE CODE 승인 완료 · 오프라인 재생 권한 확인 완료','ok');
+      $('ftlFill').style.width=local.portable&&t.portableSeconds>0?Math.max(0,Math.min(100,seconds/t.portableSeconds*100))+'%':'0%';
+      $('ftlRemain').textContent='남은 재생 · '+Math.floor(seconds/60)+'분 '+seconds%60+'초';
+      setSt(local.portable?'LOVE CODE 합의 완료 · 현재 Player 안에서 재생합니다.':'LOVE CODE 승인 완료 · 재생 권한 확인 완료','ok');
       return;
     }
     // If local activation cannot be issued but the desktop still has a live login,
@@ -662,6 +690,27 @@ function removeTrack(index){
   else if(_curIdx>index)_curIdx--;
   renderPL();
 }
+let _portableObjectUrl=null;
+const _portableAudio=$('portableAudio');
+function clearPortableAudio(){
+  try{_portableAudio.pause();}catch{}
+  try{_portableAudio.removeAttribute('src');_portableAudio.load();}catch{}
+  if(_portableObjectUrl){URL.revokeObjectURL(_portableObjectUrl);_portableObjectUrl=null;}
+}
+if(typeof tlAPI.onPortableAudio==='function')tlAPI.onPortableAudio(payload=>{
+  try{
+    clearPortableAudio();
+    const raw=payload?.bytes;
+    const bytes=raw instanceof Uint8Array?raw:
+      (raw&&raw.type==='Buffer'&&Array.isArray(raw.data)?new Uint8Array(raw.data):new Uint8Array(raw||[]));
+    if(!bytes.byteLength)throw Error('오디오 데이터가 없습니다.');
+    _portableObjectUrl=URL.createObjectURL(new Blob([bytes],{type:'audio/mpeg'}));
+    _portableAudio.src=_portableObjectUrl;
+    _portableAudio.load();
+    _portableAudio.play().catch(error=>setSt('재생 시작 실패: '+error.message,'err'));
+  }catch(error){setSt('TL3 로컬 재생 준비 실패: '+error.message,'err');}
+});
+if(typeof tlAPI.onPortableStop==='function')tlAPI.onPortableStop(()=>clearPortableAudio());
 let _playbackState={playing:false,position:0,duration:0};
 if(typeof tlAPI.onPlaybackState==='function')tlAPI.onPlaybackState(state=>{
   _playbackState=state||_playbackState;
@@ -673,6 +722,21 @@ if(typeof tlAPI.onPlaybackState==='function')tlAPI.onPlaybackState(state=>{
   $('timeEl').textContent=clock(position);
   $('durEl').textContent=clock(duration);
   $('progFill').style.width=duration>0?Math.max(0,Math.min(100,position/duration*100))+'%':'0%';
+  if(state?.portable&&Number.isFinite(Number(state.remaining_tl))){
+    const t=_playlist[_curIdx];
+    const remaining=Math.max(0,Math.floor(Number(state.remaining_tl)));
+    const total=Math.max(0,Math.floor(Number(state.total_tl)||t?.portableSeconds||0));
+    if(t){t.portableRemaining=remaining;if(total>0)t.portableSeconds=total;}
+    $('ftlLabel').textContent='🔒 TL3 파일 잔액';
+    $('ftlVal').textContent=remaining.toLocaleString('ko-KR')+' TL';
+    $('ftlFill').style.width=total>0?Math.max(0,Math.min(100,remaining/total*100))+'%':'0%';
+    $('ftlRemain').textContent=remaining>0
+      ?'남은 재생 · '+Math.floor(remaining/60)+'분 '+remaining%60+'초'
+      :'TL 잔액 소진 · 재생이 중지되었습니다.';
+    $('ftlRate').textContent='1 TL/초 · 실제 청취';
+    if(remaining===0)setSt('TL3 파일의 사용 가능한 TL을 모두 사용했습니다.','warn');
+    renderPL();
+  }
 });
 async function seekTo(event){
   setSt('TL3 청취시간 정산을 보호하기 위해 탐색은 서버 검증된 범위에서만 지원합니다.','warn');
@@ -704,7 +768,7 @@ function renderPL(){
     const name=document.createElement('div');name.className='pl-name';name.textContent=t.hdr.title||'TL3 파일';
     const sub=document.createElement('div');sub.className='pl-sub';sub.textContent='TLNK v'+t.version+' · '+(t.version===5?'서버 라이선스':'V5 재등록 필요');
     info.append(name,sub);
-    const value=document.createElement('div');value.className='pl-tl';value.textContent='🔒 TL3';
+    const value=document.createElement('div');value.className='pl-tl';value.textContent=t.portable?Math.max(0,Math.floor(t.portableRemaining)).toLocaleString('ko-KR')+' TL':'🔒 TL3';
     const del=document.createElement('button');del.className='pl-del';del.textContent='✕';del.title='목록에서 제거';del.onclick=e=>{e.stopPropagation();removeTrack(i);};
     row.append(number,symbol,info,value,del);holder.appendChild(row);
   });
