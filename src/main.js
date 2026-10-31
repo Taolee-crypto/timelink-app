@@ -74,7 +74,11 @@ async function openInAppTrack(url){
   const target=new URL(url);
   if(target.origin!==WEBSITE||target.pathname!=='/track.html'||!target.searchParams.get('id'))throw Error('허용되지 않는 재생 주소입니다.');
   closePlayback();
-  const view=new BrowserView({webPreferences:{preload:path.join(__dirname,'playback-auth-preload.js'),contextIsolation:true,nodeIntegration:false,sandbox:true,webSecurity:true,backgroundThrottling:false}});
+  // Use an isolated Electron session for the trusted playback page so that
+  // its website storage is populated before any track scripts execute.
+  const {session}=require('electron');
+  const playbackSession=session.fromPartition('persist:timelink-v5-playback');
+  const view=new BrowserView({webPreferences:{session:playbackSession,preload:path.join(__dirname,'playback-auth-preload.js'),contextIsolation:true,nodeIntegration:false,sandbox:true,webSecurity:true,backgroundThrottling:false}});
   playbackView=view;
   mainWindow.addBrowserView(view);
   // Hidden renderer runs the existing official V5 license/decrypt/settlement engine.
@@ -86,7 +90,25 @@ async function openInAppTrack(url){
     event.preventDefault();
   });
   try{
+    // Browser storage must be ready BEFORE navigation: the official page may
+    // check login during its own bootstrap, not only when Play is pressed.
+    const stored=JSON.parse(fs.readFileSync(userStore(),'utf8'));
+    const user=JSON.parse(stored.tl_user||'null');
+    if(typeof stored.tl_token!=='string'||stored.tl_token.length<16||!user?.id||!user?.email)
+      throw Error('DESKTOP_SESSION_MISSING');
+    // Load the official page, then explicitly synchronize credentials in its
+    // own storage context before invoking the protected playback routine.
     await view.webContents.loadURL(target.toString());
+    if(playbackView!==view)throw Error('PLAYBACK_CANCELLED');
+    const loaded=new URL(view.webContents.getURL());
+    if(loaded.origin!==WEBSITE||loaded.pathname!=='/track.html')
+      throw Error('UNTRUSTED_PLAYBACK_ORIGIN');
+    const synced=await view.webContents.executeJavaScript(
+      `(()=>{localStorage.setItem('tl_token',${JSON.stringify(stored.tl_token)});
+        localStorage.setItem('tl_user',${JSON.stringify(stored.tl_user)});
+        return localStorage.getItem('tl_token')===${JSON.stringify(stored.tl_token)};})()`
+    );
+    if(!synced)throw Error('PLAYBACK_SESSION_SYNC_FAILED');
     if(playbackView!==view)return;
     await view.webContents.executeJavaScript(`new Promise((resolve,reject)=>{
       let attempts=0;
