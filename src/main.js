@@ -88,6 +88,26 @@ async function openInAppTrack(url){
   try{
     await view.webContents.loadURL(target.toString());
     if(playbackView!==view)return;
+    // The hidden official track page has its own origin-localStorage. Transfer
+    // the already authenticated desktop session into that trusted origin before
+    // calling playTrack(), without exposing credentials in the URL or a web API.
+    const stored=JSON.parse(fs.readFileSync(userStore(),'utf8'));
+    const token=stored.tl_token;
+    const user=stored.tl_user;
+    if(typeof token!=='string'||token.length<16||typeof user!=='string')
+      throw Error('DESKTOP_SESSION_MISSING');
+    const parsedUser=JSON.parse(user);
+    if(!parsedUser||!parsedUser.id||!parsedUser.email)
+      throw Error('DESKTOP_SESSION_INVALID');
+    const loaded=new URL(view.webContents.getURL());
+    if(loaded.origin!==WEBSITE||loaded.pathname!=='/track.html')
+      throw Error('UNTRUSTED_PLAYBACK_ORIGIN');
+    const sessionReady=await view.webContents.executeJavaScript(
+      `(()=>{localStorage.setItem('tl_token',${JSON.stringify(token)});
+        localStorage.setItem('tl_user',${JSON.stringify(user)});
+        return localStorage.getItem('tl_token')===${JSON.stringify(token)};})()`
+    );
+    if(!sessionReady)throw Error('TRACK_SESSION_SYNC_FAILED');
     await view.webContents.executeJavaScript(`new Promise((resolve,reject)=>{
       let attempts=0;
       const poll=()=>{if(typeof _share!=='undefined'&&_share&&typeof playTrack==='function'){
