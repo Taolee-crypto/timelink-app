@@ -9,7 +9,7 @@ test('online V5 track opens inside protected Electron playback window, never ext
  assert.doesNotMatch(main,/await shell\.openExternal\(url\);return \{ok:true,opened:true\}/);
  assert.match(main,/contextIsolation:true,nodeIntegration:false,sandbox:true,webSecurity:true/);
  assert.match(main,/setWindowOpenHandler\(\(\)=>\(\{action:'deny'\}\)\)/);
- assert.match(main,/destination\.origin===WEBSITE/);
+ assert.match(main,/u\.origin===WEBSITE/);
  assert.match(main,/target\.pathname!=='\/track\.html'/);
  assert.doesNotMatch(main,/localStorage\.setItem/);
 });
