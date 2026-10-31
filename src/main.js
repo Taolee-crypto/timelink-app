@@ -236,7 +236,9 @@ ipcMain.handle('open-online-track',async(_event,{sha256,token}={})=>{
   const shareId=String(lookup.share_id||'');
   if(lookup.version!==5||!/^[a-zA-Z0-9_-]{1,128}$/.test(shareId))
     return {ok:false,error:'서버 자산 식별정보가 올바르지 않습니다.'};
-  // The site's renewal router redirects top-level track pages into index.html\n  // unless standalone=1. Electron must load the real track document directly.\n  const url=WEBSITE+'/track.html?id='+encodeURIComponent(shareId)+'&standalone=1';
+  // The site's renewal router redirects top-level track pages into index.html
+  // unless standalone=1. Electron must load the real track document directly.
+  const url=WEBSITE+'/track.html?id='+encodeURIComponent(shareId)+'&standalone=1';
   try{await openInAppTrack(url);return {ok:true,opened:true,in_app:true};}
   catch(e){return {ok:false,error:'앱 내부 재생 창을 열 수 없습니다: '+e.message};}
 });
