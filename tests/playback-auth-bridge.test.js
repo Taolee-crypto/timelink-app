@@ -6,7 +6,7 @@ test('only verified in-app TimeLink pages receive desktop login session',()=>{
   new vm.Script(main);
   new vm.Script(preload);
   assert.match(main,/preload:path\.join\(__dirname,'playback-auth-preload\.js'\)/);
-  assert.match(main,/event\.senderFrame!==window\.webContents\.mainFrame/);
+  assert.match(main,/event\.senderFrame!==view\.webContents\.mainFrame/);
   assert.match(main,/address\.origin!==WEBSITE/);
   assert.match(main,/PLAYBACK_ALLOWED_PATHS\.has\(address\.pathname\)/);
   assert.doesNotMatch(main,/Bearer '\+.*track\.html/);
