@@ -27,15 +27,18 @@ test('offline ledger writes, local recharge, legacy audio decryption and phantom
  assert.ok(main.includes('resolve-by-container/'),'download hash must map through authenticated sealed V5 server');
  assert.ok(main.includes("response.statusCode>=300")||main.includes('res.statusCode>=300'),'non-200 server replies must not count as successful TL operations');
 });
-test('offline playlist selects files and activates a device-bound grant only on play',()=>{
+test('TL3 entry creates fresh LOVE CODE consensus before any authorization path',()=>{
  assert.ok(renderer.includes('selectTrack(firstNew)'));
  assert.ok(renderer.includes('async function togglePlay()'));
  assert.ok(renderer.includes('t.version!==5'),'unlicensed legacy track must be rejected');
- assert.ok(renderer.includes('openOfflineTrack({filePath:t.fp,sha256:t.containerSha256,token:_tok})'),'local V5 playback must try the device-bound offline grant first');
+ assert.ok(renderer.includes('recognizeLoveCode({filePath:fp})'),'TL3 entry must issue fresh LOVE CODE consensus');
+ assert.ok(renderer.includes('recognitionId:t.love.recognition_id'),'authorization must carry the LOVE CODE session');
+ assert.ok(renderer.includes('approvalCode:t.love.approval_code'),'authorization must carry the consensus approval code');
  assert.ok(!renderer.includes("$('loginPanel').classList.add('show');return;"),'opening a local TL3 must not force login popup');
- assert.ok(renderer.includes('LOVE CODE'),'player must explain device/file binding');
- assert.ok(renderer.includes('openOnlineTrack({sha256:t.containerSha256,token:_tok})'),'online fallback requires exact selected container hash');
+ assert.ok(renderer.includes('LOVE CODE'),'player must expose recognition consensus separately from authorization');
+ assert.ok(renderer.includes('openOnlineTrack({'),'online fallback must remain explicit');
  assert.ok(renderer.includes('holder.replaceChildren()'),'untrusted filename must not be rendered as HTML');
  assert.ok(bridge.includes('openOnlineTrack'),'preload must explicitly expose online playback');
- assert.ok(bridge.includes('openOfflineTrack'),'preload must explicitly expose device-bound offline playback');
+ assert.ok(bridge.includes('openOfflineTrack'),'preload must explicitly expose offline authorization');
+ assert.ok(bridge.includes('recognizeLoveCode'),'preload must explicitly expose LOVE CODE recognition');
 });

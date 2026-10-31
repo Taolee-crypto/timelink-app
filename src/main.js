@@ -10,6 +10,7 @@ const {app,BrowserWindow,BrowserView,ipcMain,dialog,nativeTheme,shell}=require('
 app.commandLine.appendSwitch('autoplay-policy','no-user-gesture-required');
 const fs=require('node:fs'),path=require('node:path'),https=require('node:https'),crypto=require('node:crypto');
 const {inspectTLFile}=require('./tlnk-header');
+const {issueLoveConsensus,verifyLoveConsensus,clearLoveConsensus}=require('./love-code');
 nativeTheme.themeSource='dark';
 
 // Only trusted main-process callers may open licensed local audio.
@@ -378,12 +379,21 @@ ipcMain.handle('get-my-tl',async(_event,{token}={})=>{
 // The hash identifies a sealed V5 release but does NOT authorize listening.
 // Opening the official website still enforces login, preflight, license and
 // audible-time metering. Never pass a bearer token in a browser URL.
+ipcMain.handle('love-code-recognize',async(event,{filePath}={})=>{
+  try{
+    if(!mainWindow||mainWindow.isDestroyed()||event.sender!==mainWindow.webContents)
+      return {ok:false,code:'LOVE_CODE_UNTRUSTED_CALLER',error:'허용되지 않은 LOVE CODE 요청입니다.'};
+    return issueLoveConsensus(filePath);
+  }catch(error){
+    return {ok:false,code:'LOVE_CODE_RECOGNITION_FAILED',error:'TL3와 Player LOVE CODE 합의에 실패했습니다: '+String(error?.message||error)};
+  }
+});
 ipcMain.handle('get-offline-quote',async(_event,{sha256,token}={})=>{
   if(typeof token!=='string'||!token)return {ok:false,error:'TL 잔액을 확인하려면 로그인해 주세요.'};
   if(typeof sha256!=='string'||!/^[a-f0-9]{64}$/i.test(sha256))return {ok:false,error:'파일 확인값이 올바르지 않습니다.'};
   return nativeRequest('/api/v1/tl3/v5/offline/quote/'+sha256.toLowerCase(),{token});
 });
-ipcMain.handle('open-offline-track',async(event,{filePath,sha256,token}={})=>{
+ipcMain.handle('open-offline-track',async(event,{filePath,sha256,token,recognitionId,approvalCode}={})=>{
   if(!mainWindow||mainWindow.isDestroyed()||event.sender!==mainWindow.webContents)
     return {ok:false,code:'UNTRUSTED_OFFLINE_CALLER',error:'허용되지 않은 재생 요청입니다.'};
   try{
@@ -391,6 +401,8 @@ ipcMain.handle('open-offline-track',async(event,{filePath,sha256,token}={})=>{
       return {ok:false,code:'OFFLINE_FILE_INVALID',error:'TL3 파일을 찾을 수 없습니다.'};
     if(typeof sha256!=='string'||!/^[a-f0-9]{64}$/i.test(sha256))
       return {ok:false,code:'OFFLINE_HASH_INVALID',error:'파일 무결성 값이 올바르지 않습니다.'};
+    try{verifyLoveConsensus({recognitionId,containerSha256:sha256,approvalCode});}
+    catch(error){return {ok:false,code:'LOVE_CODE_REQUIRED',error:'TL3와 Player LOVE CODE 합의가 확인되지 않았습니다: '+String(error?.message||error)};}
     const access=await loadOrIssueOfflineEnvelope(sha256.toLowerCase(),token);
     if(access?.ok===false)return access;
     closePlayback();
@@ -406,10 +418,12 @@ ipcMain.handle('open-offline-track',async(event,{filePath,sha256,token}={})=>{
     return {ok:false,code:'OFFLINE_PLAY_FAILED',error:'오프라인 TL3 재생 실패: '+String(error?.message||error)};
   }
 });
-ipcMain.handle('open-online-track',async(_event,{sha256,token}={})=>{
+ipcMain.handle('open-online-track',async(_event,{sha256,token,recognitionId,approvalCode}={})=>{
   if(!token)return {ok:false,error:'보호된 TL3 V5는 로그인 후 들을 수 있습니다.'};
   if(typeof sha256!=='string'||!/^[a-f0-9]{64}$/i.test(sha256))
     return {ok:false,error:'컨테이너 무결성 해시가 올바르지 않습니다.'};
+  try{verifyLoveConsensus({recognitionId,containerSha256:sha256,approvalCode});}
+  catch(error){return {ok:false,code:'LOVE_CODE_REQUIRED',error:'TL3와 Player LOVE CODE 합의가 확인되지 않았습니다: '+String(error?.message||error)};}
   const lookup=await nativeRequest('/api/v1/tl3/v5/resolve-by-container/'+sha256.toLowerCase(),{token});
   if(lookup.ok!==true)return {ok:false,error:lookup.error||'공개된 V5 자산을 찾지 못했습니다.'};
   const shareId=String(lookup.share_id||'');

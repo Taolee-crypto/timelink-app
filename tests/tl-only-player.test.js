@@ -33,6 +33,8 @@ test('dropped and manually supplied MP3 are rejected before header parsing',asyn
  const tlAPI={
     storeGet:async()=>null,onTLFileOpen(){},onPlaybackWindowClosed(){},
     parseTLHeader:async fp=>{parsed++;return {ok:fp.endsWith('.tl3'),version:5,profile:'TL3-V5',header:{title:'보호곡'},container_sha256:'a'.repeat(64)};},
+    recognizeLoveCode:async()=>({ok:true,container_sha256:'a'.repeat(64),recognition_id:'love_fixture_000001',approval_code:'b'.repeat(64),file_love_code:'c'.repeat(64),player_love_code:'d'.repeat(64)}),
+    openOfflineTrack:async()=>({ok:false,error:'offline unavailable'}),
     openOnlineTrack:async()=>{online++;return {ok:true};},getOfflineQuote:async()=>({ok:false,error:'unavailable'})
  };
  const document={getElementById:nodes,createElement:()=>({
