@@ -8,38 +8,75 @@ const {app,BrowserWindow,BrowserView,ipcMain,dialog,nativeTheme,shell}=require('
 // This desktop app is itself the media player; allow that trusted playback view to
 // start audible media after server authorization.
 app.commandLine.appendSwitch('autoplay-policy','no-user-gesture-required');
-const fs=require('node:fs'),path=require('node:path'),https=require('node:https');
+const fs=require('node:fs'),path=require('node:path'),https=require('node:https'),crypto=require('node:crypto');
 const {inspectTLFile}=require('./tlnk-header');
 nativeTheme.themeSource='dark';
 
 // Only trusted main-process callers may open licensed local audio.
 // Never register this entry point as a renderer-accessible IPC handler.
 const {prepareAuthorizedOfflineAudio}=require('./offline-authorized-audio');
+const {createCredential,prepareDeviceBoundOfflineAudio}=require('./offline-device-envelope');
+let offlineWindow=null,offlineTicker=null;
 async function openAuthorizedLocalTrack(options){
-  const approved=prepareAuthorizedOfflineAudio(options);
+  if(offlineTicker){clearInterval(offlineTicker);offlineTicker=null;}
+  if(offlineWindow&&!offlineWindow.isDestroyed())offlineWindow.destroy();
+  const approved=options.envelope
+    ?prepareDeviceBoundOfflineAudio(options)
+    :prepareAuthorizedOfflineAudio(options);
   const window=new BrowserWindow({
     width:720,height:330,minWidth:520,minHeight:290,
     backgroundColor:'#25170f',title:'TimeLink Player · 오프라인',
     webPreferences:{preload:path.join(__dirname,'offline-audio-preload.js'),contextIsolation:true,nodeIntegration:false,sandbox:true,webSecurity:true}
   });
+  offlineWindow=window;
   window.setMenu(null);
   window.webContents.setWindowOpenHandler(()=>({action:'deny'}));
   window.webContents.on('will-navigate',e=>e.preventDefault());
   window.webContents.once('did-finish-load',()=>{
     if(!window.isDestroyed())window.webContents.send('authorized-offline-audio',approved.mp3);
   });
-  // Expired rights must stop audio even if the renderer is still open.
   const millisRemaining=approved.session.rights.expiresAt*1000-Date.now();
   if(!Number.isSafeInteger(millisRemaining)||millisRemaining<=0){
-    window.destroy();
-    throw Error('OFFLINE_GRANT_EXPIRED');
+    window.destroy();throw Error('OFFLINE_GRANT_EXPIRED');
   }
-  const expiryTimer=setTimeout(()=>{
-    if(!window.isDestroyed())window.destroy();
-  },Math.min(millisRemaining,2147483647));
-  window.once('closed',()=>clearTimeout(expiryTimer));
+  const expiryTimer=setTimeout(()=>{if(!window.isDestroyed())window.destroy();},Math.min(millisRemaining,2147483647));
+  let lastPosition=0,carry=0,busy=false;
+  offlineTicker=setInterval(async()=>{
+    if(busy||window.isDestroyed())return;
+    busy=true;
+    try{
+      const state=await window.webContents.executeJavaScript(`(()=>{
+        const a=document.getElementById('player');
+        return {playing:!!a&&!a.paused&&!a.ended&&!a.seeking,position:a?Number(a.currentTime)||0:0,duration:a?Number(a.duration)||0:0};
+      })()`);
+      const position=Number(state.position)||0;
+      if(state.playing&&position>=lastPosition){
+        const delta=position-lastPosition;
+        if(delta>0&&delta<1.5)carry+=delta;
+        while(carry>=1){
+          approved.session.recordAudibleSeconds({receiptId:'r_'+crypto.randomBytes(12).toString('base64url'),audibleSeconds:1});
+          carry-=1;
+        }
+      }else if(position<lastPosition||position-lastPosition>=1.5){carry=0;}
+      lastPosition=position;
+      if(mainWindow&&!mainWindow.isDestroyed())mainWindow.webContents.send('playback-state',state);
+    }catch(error){
+      if(/OFFLINE_RESERVATION_EXCEEDED|OFFLINE_GRANT_EXPIRED/.test(String(error?.message||error))){
+        try{window.destroy();}catch{}
+      }
+    }finally{busy=false;}
+  },500);
+  window.once('closed',()=>{
+    clearTimeout(expiryTimer);
+    if(offlineTicker){clearInterval(offlineTicker);offlineTicker=null;}
+    if(offlineWindow===window)offlineWindow=null;
+    if(mainWindow&&!mainWindow.isDestroyed()){
+      mainWindow.webContents.send('playback-state',{playing:false,position:0,duration:0});
+      mainWindow.webContents.send('playback-window-closed');
+    }
+  });
   await window.loadFile(path.join(__dirname,'offline-audio.html'));
-  return {window,session:approved.session};
+  return {window,session:approved.session,manifest:approved.manifest};
 }
 
 let mainWindow=null,playbackView=null,playbackTicker=null;
