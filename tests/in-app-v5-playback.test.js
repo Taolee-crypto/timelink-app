@@ -11,7 +11,10 @@ test('online V5 track opens inside protected Electron playback window, never ext
  assert.match(main,/setWindowOpenHandler\(\(\)=>\(\{action:'deny'\}\)\)/);
  assert.match(main,/u\.origin===WEBSITE/);
  assert.match(main,/target\.pathname!=='\/track\.html'/);
- assert.doesNotMatch(main,/localStorage\.setItem/);
+ assert.match(main,/loaded\.origin!==WEBSITE\|\|loaded\.pathname!=='\/track\.html'/);
+ assert.match(main,/TRACK_SESSION_SYNC_FAILED/);
+ assert.match(main,/localStorage\.setItem\('tl_token'/);
+ assert.doesNotMatch(main,/token=\+encodeURIComponent/);
 });
 test('player no longer directs audio to external browser or manufactures TL',()=>{
  assert.match(ui,/TL3 V5 서버 인증 재생을 시작했습니다/);
