@@ -3,6 +3,11 @@
 // Playback, licensing, audible-time accounting and TL settlement are server
 // authoritative; an Electron process never rewrites media or mints local TL.
 const {app,BrowserWindow,BrowserView,ipcMain,dialog,nativeTheme,shell}=require('electron');
+// Playback occurs in a locked-down hidden official TimeLink BrowserView, so the
+// renderer click cannot carry Chromium user-activation into that separate webContents.
+// This desktop app is itself the media player; allow that trusted playback view to
+// start audible media after server authorization.
+app.commandLine.appendSwitch('autoplay-policy','no-user-gesture-required');
 const fs=require('node:fs'),path=require('node:path'),https=require('node:https');
 const {inspectTLFile}=require('./tlnk-header');
 nativeTheme.themeSource='dark';
