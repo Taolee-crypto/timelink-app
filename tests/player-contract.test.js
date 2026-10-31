@@ -31,7 +31,7 @@ test('offline playlist selects files and activates a device-bound grant only on 
  assert.ok(renderer.includes('selectTrack(firstNew)'));
  assert.ok(renderer.includes('async function togglePlay()'));
  assert.ok(renderer.includes('t.version!==5'),'unlicensed legacy track must be rejected');
- assert.ok(renderer.includes('openOfflineTrack({filePath:t.fp,sha256:t.containerSha256})'),'local V5 playback must try the device-bound offline grant first');
+ assert.ok(renderer.includes('openOfflineTrack({filePath:t.fp,sha256:t.containerSha256,token:_tok})'),'local V5 playback must try the device-bound offline grant first');
  assert.ok(!renderer.includes("$('loginPanel').classList.add('show');return;"),'opening a local TL3 must not force login popup');
  assert.ok(renderer.includes('LOVE CODE'),'player must explain device/file binding');
  assert.ok(renderer.includes('openOnlineTrack({sha256:t.containerSha256,token:_tok})'),'online fallback requires exact selected container hash');
