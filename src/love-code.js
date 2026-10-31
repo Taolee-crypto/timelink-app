@@ -3,7 +3,7 @@ const fs=require('node:fs');
 const crypto=require('node:crypto');
 const {splitPortableTl3Buffer}=require('./portable-tl3');
 
-const MAX_CONTAINER_BYTES=24*1024*1024;
+const MAX_CONTAINER_BYTES=24*1024*1024+128*1024;
 const SESSION_TTL_MS=12*60*60*1000;
 const sessions=new Map();
 
@@ -62,6 +62,8 @@ function issueLoveConsensus(filePath){
     player_love_code:playerLoveCode,
     approval_code:approvalCode,
     file_signal_version:file.fileSignalVersion,
+    portable:file.portable,
+    portable_reserved_seconds:file.portableCapsule?Number(file.portableCapsule.reserved_seconds)||0:0,
     issued_at:issuedAt
   });
 }
