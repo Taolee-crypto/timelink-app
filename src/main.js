@@ -49,13 +49,26 @@ function closePlayback(){
 }
 async function playbackCommand(command){
   if(!playbackView||playbackView.webContents.isDestroyed())return {ok:false,error:'NO_ACTIVE_PLAYBACK'};
-  const js=command==='pause'?'if(_tlAudio&&!_tlAudio.paused)togglePlay();':
-    command==='resume'?'if(_tlAudio&&_tlAudio.paused)togglePlay();':
-    command==='seek-forward'?'if(_tlAudio&&Number.isFinite(_tlAudio.duration))_tlAudio.currentTime=Math.min(_tlAudio.duration,_tlAudio.currentTime+10);':
-    command==='seek-back'?'if(_tlAudio)_tlAudio.currentTime=Math.max(0,_tlAudio.currentTime-10);':'';
-  if(!js)return {ok:false,error:'INVALID_COMMAND'};
-  await playbackView.webContents.executeJavaScript(js);
-  return {ok:true};
+  // Evaluate controls inside the trusted track renderer without assuming its audio
+  // variable exists. A missing audio element must return an error, not throw.
+  const js=`(()=>{
+    const audio=typeof _tlAudio!=='undefined'?_tlAudio:null;
+    if(!audio)return {ok:false,error:'AUDIO_NOT_READY'};
+    const command=${JSON.stringify(command)};
+    if(command==='pause'){
+      if(!audio.paused&&typeof togglePlay==='function')togglePlay();
+    }else if(command==='resume'){
+      if(audio.paused&&typeof togglePlay==='function')togglePlay();
+    }else if(command==='seek-forward'){
+      if(!Number.isFinite(audio.duration))return {ok:false,error:'DURATION_NOT_READY'};
+      audio.currentTime=Math.min(audio.duration,audio.currentTime+10);
+    }else if(command==='seek-back'){
+      audio.currentTime=Math.max(0,audio.currentTime-10);
+    }else return {ok:false,error:'INVALID_COMMAND'};
+    return {ok:true};
+  })()`;
+  if(!['pause','resume','seek-forward','seek-back'].includes(command))return {ok:false,error:'INVALID_COMMAND'};
+  return playbackView.webContents.executeJavaScript(js);
 }
 async function openInAppTrack(url){
   const target=new URL(url);
