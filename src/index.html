@@ -530,7 +530,7 @@ async function addToPlaylist(paths,selectFirst=false){
       }
     }
     const t={fp,version:parsed.version,profile:parsed.profile,hdr:parsed.header||{},
-      containerSha256:parsed.container_sha256||null,love,
+      containerSha256:parsed.container_sha256||null,love,portable:parsed.portable===true,portableSeconds:Number(parsed.portable_reserved_seconds)||0,
       isVideo:parsed.version!==5&&/\.(?:tl4)$/i.test(fp),
       icon:parsed.version===5?'🎵':'🔒'};
     _playlist.push(t);
@@ -546,7 +546,7 @@ function selectTrack(index){
   _curIdx=index;
   const t=_playlist[index];
   $('npTitle').textContent=t.hdr.title||'TLNK 보호 파일';
-  $('npArtist').textContent=t.version===5?'TL3 V5 · 온라인 서버 확인':(t.hdr.artist||'이전 TL 버전');
+  $('npArtist').textContent=t.version===5?(t.portable?'TL3 V5 · LOVE CODE · 휴대형':'TL3 V5 · LOVE CODE'):(t.hdr.artist||'이전 TL 버전');
   $('npType').textContent=t.version===5?'🔐 TL3 V5 AES-256-GCM':'🔒 TLNK v'+t.version+' · 구버전';
   $('npType').style.display='inline-block';
   $('videoArea').classList.remove('show');$('discEl').style.display='flex';
@@ -559,7 +559,9 @@ function selectTrack(index){
   renderPL();
   void refreshOfflineAvailability();
   setSt(t.version===5&&t.love?.ok
-    ?'TL3 ↔ Player LOVE CODE 합의 완료 · 승인코드 '+String(t.love.approval_code||'').slice(0,12).toUpperCase()
+    ?(t.portable
+      ?'TL3 ↔ Player LOVE CODE 합의 완료 · 파일 이용시간 '+Math.floor(t.portableSeconds/60)+'분 '+t.portableSeconds%60+'초'
+      :'TL3 ↔ Player LOVE CODE 합의 완료 · 이전 다운로드본')
     :'구버전 TL 파일입니다. V5로 다시 자산화한 후 청취하세요.',t.version===5?'ok':'warn');
 }
 async function refreshOfflineAvailability(){
@@ -613,8 +615,8 @@ async function togglePlay(){
       $('playBtn').classList.add('on');
       const seconds=Number(local.remaining_seconds)||0;
       $('ftlVal').textContent=seconds.toLocaleString('ko-KR')+' TL';
-      $('ftlRemain').textContent='오프라인 이용 가능 시간 · '+Math.floor(seconds/60)+'분 '+seconds%60+'초';
-      setSt('LOVE CODE 승인 완료 · 오프라인 재생 권한 확인 완료','ok');
+      $('ftlRemain').textContent=(local.portable?'TL3 파일 이용시간 · ':'오프라인 이용 가능 시간 · ')+Math.floor(seconds/60)+'분 '+seconds%60+'초';
+      setSt(local.portable?'LOVE CODE 합의 완료 · TL3 자체 이용정보로 재생합니다.':'LOVE CODE 승인 완료 · 오프라인 재생 권한 확인 완료','ok');
       return;
     }
     // If local activation cannot be issued but the desktop still has a live login,
