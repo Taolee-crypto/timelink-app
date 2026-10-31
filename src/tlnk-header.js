@@ -4,6 +4,7 @@
 const fs=require('node:fs');
 const path=require('node:path');
 const crypto=require('node:crypto');
+const {splitPortableTl3Buffer}=require('./portable-tl3');
 const MAX_HEADER_BYTES=4*1024*1024;
 const MAX_V5_BOOTSTRAP_BYTES=65536;
 function safeText(name){return path.basename(String(name||'')).replace(/\.(?:tl|tl3|tl4|tld|tlg|tle)$/i,'').slice(0,200);}
@@ -60,15 +61,20 @@ async function inspectTLFile(fp){
       if(next.bytesRead===0)break;
       cursor+=next.bytesRead;
     }
-    const data=parseTLNKPrefix(full.subarray(0,cursor),stat.size,fp);
-    if(!data.ok)return data;
-    // A bootstrap is not a decryption license. Only a SHA-256 exact-match
-    // lookup over the sealed asset can locate the corresponding online track.
-    if(data.version===5){
-      const h=crypto.createHash('sha256');
-      const stream=fs.createReadStream(fp);
-      for await(const chunk of stream)h.update(chunk);
-      data.container_sha256=h.digest('hex');
+    let data;
+    if(first[4]===5){
+      const raw=await fs.promises.readFile(fp);
+      const split=splitPortableTl3Buffer(raw);
+      const base=split.base;
+      data=parseTLNKPrefix(base.subarray(0,Math.min(base.length,9+bytes)),base.length,fp);
+      if(!data.ok)return data;
+      data.container_sha256=crypto.createHash('sha256').update(base).digest('hex');
+      data.portable=!!split.capsule;
+      data.portable_reserved_seconds=split.capsule?Number(split.capsule.reserved_seconds)||0:0;
+      data.portable_grant_id=split.capsule?String(split.capsule.grant_id||''):null;
+    }else{
+      data=parseTLNKPrefix(full.subarray(0,cursor),stat.size,fp);
+      if(!data.ok)return data;
     }
     return data;
   }catch(e){return {error:'파일을 읽을 수 없습니다: '+(e?.message||String(e)),code:'TLNK_IO_ERROR'};}

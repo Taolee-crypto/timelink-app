@@ -17,13 +17,16 @@ nativeTheme.themeSource='dark';
 // Never register this entry point as a renderer-accessible IPC handler.
 const {prepareAuthorizedOfflineAudio}=require('./offline-authorized-audio');
 const {createCredential,prepareDeviceBoundOfflineAudio}=require('./offline-device-envelope');
+const {readPortableTl3,preparePortableOfflineAudio}=require('./portable-tl3');
 let offlineWindow=null,offlineTicker=null;
 async function openAuthorizedLocalTrack(options){
   if(offlineTicker){clearInterval(offlineTicker);offlineTicker=null;}
   if(offlineWindow&&!offlineWindow.isDestroyed())offlineWindow.destroy();
-  const approved=options.envelope
-    ?prepareDeviceBoundOfflineAudio(options)
-    :prepareAuthorizedOfflineAudio(options);
+  const approved=options.portable
+    ?preparePortableOfflineAudio(options)
+    :options.envelope
+      ?prepareDeviceBoundOfflineAudio(options)
+      :prepareAuthorizedOfflineAudio(options);
   const window=new BrowserWindow({
     width:720,height:330,minWidth:520,minHeight:290,
     backgroundColor:'#25170f',title:'TimeLink Player · 오프라인',
@@ -36,11 +39,15 @@ async function openAuthorizedLocalTrack(options){
   window.webContents.once('did-finish-load',()=>{
     if(!window.isDestroyed())window.webContents.send('authorized-offline-audio',approved.mp3);
   });
-  const millisRemaining=approved.session.rights.expiresAt*1000-Date.now();
-  if(!Number.isSafeInteger(millisRemaining)||millisRemaining<=0){
-    window.destroy();throw Error('OFFLINE_GRANT_EXPIRED');
+  const expiresAt=Number(approved.session.rights.expiresAt||0);
+  let expiryTimer=null;
+  if(expiresAt>0){
+    const millisRemaining=expiresAt*1000-Date.now();
+    if(!Number.isSafeInteger(millisRemaining)||millisRemaining<=0){
+      window.destroy();throw Error('OFFLINE_GRANT_EXPIRED');
+    }
+    expiryTimer=setTimeout(()=>{if(!window.isDestroyed())window.destroy();},Math.min(millisRemaining,2147483647));
   }
-  const expiryTimer=setTimeout(()=>{if(!window.isDestroyed())window.destroy();},Math.min(millisRemaining,2147483647));
   let lastPosition=0,carry=0,busy=false;
   offlineTicker=setInterval(async()=>{
     if(busy||window.isDestroyed())return;
@@ -68,7 +75,7 @@ async function openAuthorizedLocalTrack(options){
     }finally{busy=false;}
   },500);
   window.once('closed',()=>{
-    clearTimeout(expiryTimer);
+    if(expiryTimer)clearTimeout(expiryTimer);
     if(offlineTicker){clearInterval(offlineTicker);offlineTicker=null;}
     if(offlineWindow===window)offlineWindow=null;
     if(mainWindow&&!mainWindow.isDestroyed()){
@@ -401,8 +408,31 @@ ipcMain.handle('open-offline-track',async(event,{filePath,sha256,token,recogniti
       return {ok:false,code:'OFFLINE_FILE_INVALID',error:'TL3 파일을 찾을 수 없습니다.'};
     if(typeof sha256!=='string'||!/^[a-f0-9]{64}$/i.test(sha256))
       return {ok:false,code:'OFFLINE_HASH_INVALID',error:'파일 무결성 값이 올바르지 않습니다.'};
-    try{verifyLoveConsensus({recognitionId,containerSha256:sha256,approvalCode});}
+    let loveSession;
+    try{loveSession=verifyLoveConsensus({recognitionId,containerSha256:sha256,approvalCode});}
     catch(error){return {ok:false,code:'LOVE_CODE_REQUIRED',error:'TL3와 Player LOVE CODE 합의가 확인되지 않았습니다: '+String(error?.message||error)};}
+
+    // New downloads carry their funded listening time inside the TL3 itself.
+    // That portable capsule belongs to the file, not to a PC or login session.
+    const portable=readPortableTl3(filePath);
+    if(portable.capsule){
+      closePlayback();
+      const opened=await openAuthorizedLocalTrack({
+        filePath,portable:true,loveSession,directory:offlineReceiptDir()
+      });
+      const used=opened.session.getPendingReceipts().receipts.reduce((n,r)=>n+Number(r.audible_seconds||0),0);
+      return {ok:true,offline:true,portable:true,cached:true,
+        entitlement_id:opened.session.rights.entitlementId,
+        remaining_seconds:Math.max(0,opened.session.rights.fileTlReserved-used),
+        expires_at:null};
+    }
+
+    // Compatibility only for old downloads made before portable TL3 existed.
+    // Never describe LOVE CODE as a PC entitlement.
+    if(typeof token!=='string'||token.length<16){
+      return {ok:false,code:'PORTABLE_TL3_REQUIRED',
+        error:'이 파일은 휴대형 이용정보가 들어가기 전의 이전 TL3입니다. 곡 페이지에서 다시 다운로드하면 로그인 없이 어느 공식 Player에서도 재생됩니다.'};
+    }
     const access=await loadOrIssueOfflineEnvelope(sha256.toLowerCase(),token);
     if(access?.ok===false)return access;
     closePlayback();
@@ -410,7 +440,7 @@ ipcMain.handle('open-offline-track',async(event,{filePath,sha256,token,recogniti
       filePath,envelope:access.envelope,credential:access.credential,userId:access.userId,
       directory:offlineReceiptDir()
     });
-    return {ok:true,offline:true,cached:access.cached,
+    return {ok:true,offline:true,cached:access.cached,legacy:true,
       entitlement_id:opened.session.rights.entitlementId,
       remaining_seconds:opened.session.rights.fileTlReserved,
       expires_at:opened.session.rights.expiresAt};
