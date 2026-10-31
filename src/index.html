@@ -547,7 +547,7 @@ function selectTrack(index){
   $('ftlRate').textContent='1 TL/초 · 실제 청취';
   renderPL();
   void refreshOfflineAvailability();
-  setSt(t.version===5?'TL3 V5 파일을 확인했습니다. 현재 파일은 오프라인 재생권이 발급되지 않은 서버 인증형 파일입니다. 로그인 없이 재생하려면 별도 오프라인 권한이 필요합니다.':'구버전 TL 파일입니다. V5로 다시 자산화한 후 청취하세요.','warn');
+  setSt(t.version===5?'TL3 V5 파일을 확인했습니다. ▶ 재생 시 이 PC의 LOVE CODE와 곡 TL을 확인해 오프라인 청취권을 자동 연결합니다.':'구버전 TL 파일입니다. V5로 다시 자산화한 후 청취하세요.',t.version===5?'ok':'warn');
 }
 async function refreshOfflineAvailability(){
   const current=_curIdx,t=_playlist[current],token=_token;
@@ -559,7 +559,7 @@ async function refreshOfflineAvailability(){
     if(quote?.ok){
       const seconds=Number(quote.max_reservable_seconds);
       $('ftlRemain').textContent=Number.isSafeInteger(seconds)&&seconds>=0
-        ?'이 곡에서 이용 가능한 시간: '+Math.floor(seconds/60)+'분 '+seconds%60+'초 (오프라인 이용권 발급 준비 중)'
+        ?'이 곡에서 오프라인으로 옮길 수 있는 시간: '+Math.floor(seconds/60)+'분 '+seconds%60+'초 · 재생 시 자동 발급'
         :'오프라인 이용 가능 시간을 확인할 수 없습니다.';
     }else $('ftlRemain').textContent=quote?.error||'오프라인 이용 가능 시간 조회 실패';
   }catch(e){if(current===_curIdx)$('ftlRemain').textContent='서버에 연결할 수 없습니다.';}
@@ -580,21 +580,37 @@ async function togglePlay(){
   if(_playbackState.playing){await tlAPI.playbackCommand('pause');return;}
   if(_playbackState.position>0&&_playbackState.duration>0){const r=await tlAPI.playbackCommand('resume');if(r?.ok)return;}
   if(t.version!==5){
-    setSt('구버전 TLNK 파일은 서버 라이선스 없이 재생할 수 없습니다. V5 음원으로 다시 등록해 주세요.','err');
+    setSt('구버전 TLNK 파일은 V5 오프라인 청취권을 사용할 수 없습니다. V5로 다시 자산화해 주세요.','err');
     return;
   }
-  if(!_token){setSt('이 TL3 V5 파일에는 검증 가능한 오프라인 청취권이 아직 없습니다. 파일을 PC에서 재생하기 위해 로그인을 강제하지 않습니다. 오프라인 라이선스 발급·로컬 복호화·재접속 정산 기능이 준비되기 전까지 재생할 수 없습니다.','err');return;}
   if(!t.containerSha256){setSt('파일의 무결성 해시를 확인할 수 없습니다. 다시 다운로드해 주세요.','err');return;}
   const current=_curIdx,_tok=_token;
   _opening=true;$('playBtn').textContent='⏳';
-  setSt('⏳ 서버에서 봉인 자산과 권리 상태 확인 중...');
+  setSt('⏳ 이 PC의 LOVE CODE와 곡 TL 청취권 확인 중...');
   try{
-    const r=await tlAPI.openOnlineTrack({sha256:t.containerSha256,token:_tok});
-    if(current!==_curIdx||_tok!==_token)return;
-    if(!r?.ok)throw Error(r?.error||'공개된 암호화 자산과 일치하지 않습니다.');
-    $('playBtn').classList.add('on');
-    setSt('TL3 V5 서버 인증 재생을 시작했습니다. 현재 플레이어에서 제어합니다.','ok');
-    await syncMyTL();
+    const local=await tlAPI.openOfflineTrack({filePath:t.fp,sha256:t.containerSha256});
+    if(current!==_curIdx)return;
+    if(local?.ok){
+      $('playBtn').classList.add('on');
+      const seconds=Number(local.remaining_seconds)||0;
+      $('ftlVal').textContent=seconds.toLocaleString('ko-KR')+' TL';
+      $('ftlRemain').textContent='이 PC 오프라인 청취권 · '+Math.floor(seconds/60)+'분 '+seconds%60+'초 예약';
+      setSt(local.cached?'TL3 V5 오프라인 청취권으로 재생합니다.':'곡에 충전된 TL을 이 PC 오프라인 청취권으로 연결해 재생합니다.','ok');
+      return;
+    }
+    // If local activation cannot be issued but the desktop still has a live login,
+    // retain the official online path instead of showing a false login prompt.
+    if(_tok){
+      setSt('오프라인 권한 연결 실패 · 온라인 서버 재생으로 전환 중...','warn');
+      const r=await tlAPI.openOnlineTrack({sha256:t.containerSha256,token:_tok});
+      if(current!==_curIdx||_tok!==_token)return;
+      if(!r?.ok)throw Error(local?.error||r?.error||'TL3 V5 재생 권한을 확인할 수 없습니다.');
+      $('playBtn').classList.add('on');
+      setSt('TL3 V5 서버 인증 재생을 시작했습니다.','ok');
+      await syncMyTL();
+      return;
+    }
+    throw Error(local?.error||'이 PC의 오프라인 청취권을 확인할 수 없습니다.');
   }catch(e){if(current===_curIdx)setSt('❌ '+e.message,'err');}
   finally{_opening=false;$('playBtn').textContent='▶';}
 }
