@@ -96,8 +96,19 @@ async function openInAppTrack(url){
     const user=JSON.parse(stored.tl_user||'null');
     if(typeof stored.tl_token!=='string'||stored.tl_token.length<16||!user?.id||!user?.email)
       throw Error('DESKTOP_SESSION_MISSING');
-    const safeOrigin=WEBSITE;
-    await view.webContents.loadURL(safeOrigin+'/track.html?standalone=1&id='+encodeURIComponent(target.searchParams.get('id')));
+    // Load the official page, then explicitly synchronize credentials in its
+    // own storage context before invoking the protected playback routine.
+    await view.webContents.loadURL(target.toString());
+    if(playbackView!==view)throw Error('PLAYBACK_CANCELLED');
+    const loaded=new URL(view.webContents.getURL());
+    if(loaded.origin!==WEBSITE||loaded.pathname!=='/track.html')
+      throw Error('UNTRUSTED_PLAYBACK_ORIGIN');
+    const synced=await view.webContents.executeJavaScript(
+      `(()=>{localStorage.setItem('tl_token',${JSON.stringify(stored.tl_token)});
+        localStorage.setItem('tl_user',${JSON.stringify(stored.tl_user)});
+        return localStorage.getItem('tl_token')===${JSON.stringify(stored.tl_token)};})()`
+    );
+    if(!synced)throw Error('PLAYBACK_SESSION_SYNC_FAILED');
     if(playbackView!==view)return;
     await view.webContents.executeJavaScript(`new Promise((resolve,reject)=>{
       let attempts=0;
